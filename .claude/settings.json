@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(e:/Softwares/cleaning-carryover-app/backend/venv/Scripts/python.exe -c ' *)",
+      "Bash(venv\\\\Scripts\\\\python.exe -m pip install \"passlib[bcrypt]\" \"python-jose[cryptography]\" --quiet)",
+      "PowerShell(cd \"e:\\\\Softwares\\\\cleaning-carryover-app\\\\backend\"; .\\\\venv\\\\Scripts\\\\python.exe -m pip install \"passlib[bcrypt]\" \"python-jose[cryptography]\" --quiet; Write-Host \"Done: $LASTEXITCODE\")",
+      "WebFetch(domain:www.amplelogic.com)",
+      "Bash(npx react-scripts *)",
+      "Bash(Get-ChildItem -Path \"e:\\\\Softwares\\\\cleaning-carryover-app\" -Recurse -File)",
+      "Bash(Select-Object -Property FullName)",
+      "Bash(xargs ls -la)",
+      "Bash(Get-ChildItem -Path \"e:\\\\Softwares\\\\cleaning-carryover-app\" -Recurse -Depth 2 -Directory)",
+      "Bash(Select-Object FullName)",
+      "Read(//d/screenshots/**)",
+      "Bash(python make_slides.py)",
+      "Bash(python -c \"import sqlite3; conn = sqlite3.connect\\('maco.db'\\); cols = [r[1] for r in conn.execute\\('PRAGMA table_info\\(cleaning_validation_reports\\)'\\)]; print\\(cols\\); conn.close\\(\\)\")",
+      "Bash(python -c ' *)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue)"
+    ]
+  }
+}
