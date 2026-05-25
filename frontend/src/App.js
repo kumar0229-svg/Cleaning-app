@@ -11,11 +11,20 @@ import AuditPage from "./AuditPage";
 import UserManagementPage from "./UserManagementPage";
 import NlpQueryPage from "./NlpQueryPage";
 import HelpPage from "./HelpPage";
-import ContinuousCleaningVerificationPage from "./ContinuousCleaningVerificationPage";
 import LifeCycleManagementPage from "./LifeCycleManagementPage";
+import DashboardPage from "./DashboardPage";
 import logo from "./assets/cipla-logo.png";
 
 const icons = {
+  /* Dashboard / bar chart */
+  dashboard: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <rect x="7" y="13" width="3" height="5" rx="0.5" fill="currentColor" stroke="none"/>
+      <rect x="11" y="9" width="3" height="9" rx="0.5" fill="currentColor" stroke="none"/>
+      <rect x="15" y="6" width="3" height="12" rx="0.5" fill="currentColor" stroke="none"/>
+    </svg>
+  ),
   /* Manufacturing facility / building */
   facility: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
@@ -295,16 +304,16 @@ function App() {
   if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
   if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
   if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => setPage("home")} /></>;
-  if (page === "ccv")       return <>{offlineBanner}{warningOverlay}<ContinuousCleaningVerificationPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} /></>;
+  if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => setPage("home")} currentUser={user} /></>;
+  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
 
   const cards = [
+    { key: "dashboard", label: "Dashboard",          color: "#e0f2fe" },
     { key: "facility",  label: "Facility",          color: "#e8f0fb" },
     { key: "equipment", label: "Equipment",          color: "#eaf7ee" },
     { key: "product",   label: "Product",            color: "#fef3e2" },
     { key: "matrix",    label: "Matrix",             color: "#f0ebfb" },
     { key: "protocol",  label: "Protocol & Report",  color: "#e8f5e9" },
-    { key: "ccv",       label: "Continuous Cleaning Verification", color: "#e8f5e9" },
     { key: "lifecycle", label: "Life Cycle Management", color: "#f0ebfb" },
     { key: "audit",     label: "Audit",              color: "#fde8e8" },
     { key: "query",     label: "Query",              color: "#e2f4fb" },
@@ -381,7 +390,8 @@ function App() {
         )}
       </div>
 
-      {/* Logout */}
+
+            {/* Logout */}
       <button
         style={styles.logout}
         onClick={logout}

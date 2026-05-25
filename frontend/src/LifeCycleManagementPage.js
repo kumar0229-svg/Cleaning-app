@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "./api";
+import ContinuousCleaningVerificationPage from "./ContinuousCleaningVerificationPage";
 
 // ── Helper ────────────────────────────────────────────────────────────
 const fmtDate = (s) => {
@@ -10,133 +11,6 @@ const fmtDate = (s) => {
     });
   } catch { return s; }
 };
-
-// ── Dashboard sub-components ──────────────────────────────────────────
-function KpiCard({ value, label, color, bg }) {
-  return (
-    <div style={{
-      background: bg || "white", border: `1px solid ${color}33`,
-      borderRadius: 10, padding: "16px 18px", textAlign: "center",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.05)", flex: 1, minWidth: 120,
-    }}>
-      <div style={{ fontSize: 30, fontWeight: "bold", color, lineHeight: 1 }}>{value ?? "—"}</div>
-      <div style={{ fontSize: 11, color: "#6b7280", marginTop: 5, fontWeight: 600,
-        textTransform: "uppercase", letterSpacing: "0.4px" }}>{label}</div>
-    </div>
-  );
-}
-
-function DonutChart({ completed, pending, size = 180 }) {
-  const cx = size / 2, cy = size / 2, r = 62;
-  const C = 2 * Math.PI * r;
-  const total = completed + pending;
-  if (total === 0) return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e2e8f0" strokeWidth={26} />
-      <text x={cx} y={cy + 5} textAnchor="middle" fontSize={12} fill="#94a3b8">No data</text>
-    </svg>
-  );
-  const completedLen = (completed / total) * C;
-  const pendingLen   = (pending   / total) * C;
-  const pct = Math.round((completed / total) * 100);
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={26} />
-      {completedLen > 0 && (
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#22c55e" strokeWidth={26}
-          strokeDasharray={`${completedLen} ${C - completedLen}`}
-          transform={`rotate(-90, ${cx}, ${cy})`} />
-      )}
-      {pendingLen > 0 && (
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f97316" strokeWidth={26}
-          strokeDasharray={`${pendingLen} ${C - pendingLen}`}
-          transform={`rotate(${-90 + (completedLen / C) * 360}, ${cx}, ${cy})`} />
-      )}
-      <text x={cx} y={cy - 8} textAnchor="middle" fontSize={28} fontWeight="bold" fill="#1e293b">
-        {pct}%
-      </text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={10} fill="#64748b">Completed</text>
-      <text x={cx} y={cy + 26} textAnchor="middle" fontSize={9} fill="#94a3b8">
-        {completed}/{total} protocols
-      </text>
-    </svg>
-  );
-}
-
-function FacilityBarChart({ data }) {
-  if (!data || data.length === 0) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
-      height: 200, color: "#94a3b8", fontSize: 13 }}>No facility data</div>
-  );
-  const W = 580, H = 230;
-  const pad = { top: 24, right: 16, bottom: 64, left: 44 };
-  const iW = W - pad.left - pad.right;
-  const iH = H - pad.top - pad.bottom;
-  const maxVal = Math.max(1, ...data.map(d =>
-    Math.max(d.product_count, d.protocol_count, d.report_count + d.pending_count)));
-  const barGroups = [
-    { key: "product_count",  color: "#60a5fa", label: "Products" },
-    { key: "protocol_count", color: "#818cf8", label: "Approved Protocols" },
-    { key: "report_count",   color: "#34d399", label: "Reports Done" },
-    { key: "pending_count",  color: "#fb923c", label: "Pending" },
-  ];
-  const groupW   = iW / data.length;
-  const barW     = Math.min(18, (groupW - 16) / barGroups.length);
-  const groupPad = (groupW - barW * barGroups.length) / 2;
-  const yTicks   = [0, 0.25, 0.5, 0.75, 1];
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
-      <g transform={`translate(${pad.left},${pad.top})`}>
-        {yTicks.map(pct => {
-          const y = iH - pct * iH;
-          return (
-            <g key={pct}>
-              <line x1={0} x2={iW} y1={y} y2={y}
-                stroke={pct === 0 ? "#cbd5e1" : "#e2e8f0"}
-                strokeWidth={pct === 0 ? 1.5 : 1}
-                strokeDasharray={pct === 0 ? "0" : "3,3"} />
-              <text x={-6} y={y + 4} textAnchor="end" fontSize={9} fill="#94a3b8">
-                {Math.round(pct * maxVal)}
-              </text>
-            </g>
-          );
-        })}
-        {data.map((fac, fi) => {
-          const gx = fi * groupW + groupPad;
-          const labelX = fi * groupW + groupW / 2;
-          const name = fac.facility_name.length > 14
-            ? fac.facility_name.slice(0, 13) + "…" : fac.facility_name;
-          return (
-            <g key={fac.facility_id}>
-              {barGroups.map((bg, bi) => {
-                const val = fac[bg.key] || 0;
-                const bh  = (val / maxVal) * iH;
-                const bx  = gx + bi * barW;
-                const by  = iH - bh;
-                return (
-                  <g key={bg.key}>
-                    <rect x={bx} y={by} width={barW - 1} height={bh}
-                      fill={bg.color} rx={2} opacity={0.9} />
-                    {val > 0 && bh > 14 && (
-                      <text x={bx + (barW - 1) / 2} y={by + 11}
-                        textAnchor="middle" fontSize={8} fill="white" fontWeight="bold">{val}</text>
-                    )}
-                    {val > 0 && bh <= 14 && (
-                      <text x={bx + (barW - 1) / 2} y={by - 3}
-                        textAnchor="middle" fontSize={8} fill="#475569" fontWeight="bold">{val}</text>
-                    )}
-                  </g>
-                );
-              })}
-              <text x={labelX} y={iH + 16} textAnchor="middle" fontSize={9} fill="#374151"
-                fontWeight="600">{name}</text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
 
 function ProgressBar({ value, max, color }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -152,41 +26,20 @@ function ProgressBar({ value, max, color }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────
-export default function LifeCycleManagementPage({ goHome, currentUser }) {
-  const [activeTab, setActiveTab] = useState("dashboard");
-
-  // Dashboard state
-  const [dashData,    setDashData]    = useState(null);
-  const [dashLoading, setDashLoading] = useState(false);
-  const [dashError,   setDashError]   = useState("");
-  const [expandedFac, setExpandedFac] = useState(new Set());
-  const [dashLastAt,  setDashLastAt]  = useState(null);
-  const [dashView,    setDashView]    = useState("both");
+export default function LifeCycleManagementPage({ goHome, currentUser, role }) {
+  const [activeTab, setActiveTab] = useState("schedule");
 
   // Schedule state
   const [schedData,    setSchedData]    = useState(null);
   const [schedLoading, setSchedLoading] = useState(false);
   const [schedError,   setSchedError]   = useState("");
 
+
   // Inline completion entry state
   const [rowDate,       setRowDate]       = useState({});
   const [savingRow,     setSavingRow]     = useState(null);
   const [pendingRow,    setPendingRow]    = useState(null);  // row awaiting password confirm
   const [modalPassword, setModalPassword] = useState("");
-
-  const loadDashboard = useCallback(async () => {
-    setDashLoading(true);
-    setDashError("");
-    try {
-      const res = await api.get("/dashboard/summary");
-      setDashData(res.data);
-      setDashLastAt(new Date());
-    } catch (e) {
-      setDashError(e.response?.data?.detail || "Failed to load dashboard.");
-    } finally {
-      setDashLoading(false);
-    }
-  }, []);
 
   const loadSchedule = useCallback(async () => {
     setSchedLoading(true);
@@ -234,19 +87,9 @@ export default function LifeCycleManagementPage({ goHome, currentUser }) {
     }
   };
 
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
-
   useEffect(() => {
     if (activeTab === "schedule" && !schedData) loadSchedule();
   }, [activeTab, schedData, loadSchedule]);
-
-  const toggleFacility = (fid) => {
-    setExpandedFac(prev => {
-      const next = new Set(prev);
-      next.has(fid) ? next.delete(fid) : next.add(fid);
-      return next;
-    });
-  };
 
   const th = { background: "#004f9f", color: "white", padding: "8px 10px",
     textAlign: "left", fontSize: 11, fontWeight: "bold", border: "1px solid #0044a0" };
@@ -280,8 +123,12 @@ export default function LifeCycleManagementPage({ goHome, currentUser }) {
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 2, borderBottom: "2px solid #e2e8f0" }}>
         {[
-          { id: "dashboard", label: "Dashboard" },
           { id: "schedule",  label: "Schedule" },
+          { id: "ccv",       label: "Continuous Cleaning Verification" },
+          { id: "cvpr-protocol", label: "Periodic Cleaning Verification Protocol" },
+          { id: "cvpr-report",   label: "Periodic Cleaning Verification Report" },
+          { id: "deht",          label: "Dirty Equipment Hold Time Study" },
+          { id: "ceht",          label: "Clean Equipment Hold Time Study" },
         ].map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
             padding: "10px 18px", border: "none", background: "transparent",
@@ -298,283 +145,14 @@ export default function LifeCycleManagementPage({ goHome, currentUser }) {
       <div style={{ background: "white", borderRadius: "0 0 10px 10px", padding: 24,
         boxShadow: "0 2px 8px rgba(0,0,0,0.07)", marginBottom: 20 }}>
 
-        {/* ── DASHBOARD TAB ── */}
-        {activeTab === "dashboard" && (
-          <div>
-            <div style={{ display: "flex", alignItems: "center",
-              justifyContent: "space-between", marginBottom: 20 }}>
-              <div>
-                <h3 style={{ margin: 0, color: "#004f9f", fontSize: 18 }}>Site Validation Status</h3>
-                {dashLastAt && (
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>
-                    Last refreshed: {dashLastAt.toLocaleTimeString("en-IN")}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                {["both", "chart", "table"].map(v => (
-                  <button key={v} onClick={() => setDashView(v)} style={{
-                    padding: "6px 14px", borderRadius: 6, border: "1px solid #e2e8f0",
-                    background: dashView === v ? "#004f9f" : "white",
-                    color: dashView === v ? "white" : "#555",
-                    cursor: "pointer", fontSize: 12, fontWeight: dashView === v ? "bold" : "normal",
-                  }}>
-                    {v === "both" ? "Both" : v === "chart" ? "Chart" : "Table"}
-                  </button>
-                ))}
-                <button onClick={loadDashboard} disabled={dashLoading} style={{
-                  padding: "6px 14px", borderRadius: 6, border: "1px solid #d1d5db",
-                  background: "#f8fafc", color: "#374151", cursor: "pointer", fontSize: 12,
-                }}>
-                  {dashLoading ? "Loading…" : "Refresh"}
-                </button>
-              </div>
-            </div>
-
-            {dashLoading && (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#004f9f" }}>
-                Loading dashboard…
-              </div>
-            )}
-
-            {dashError && !dashLoading && (
-              <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8,
-                padding: "14px 18px", color: "#b91c1c", marginBottom: 16 }}>
-                {dashError}
-              </div>
-            )}
-
-            {dashData && !dashLoading && (() => {
-              const t = dashData.totals;
-              const byFac  = dashData.by_facility || [];
-              const byProd = dashData.by_product  || [];
-              return (
-                <>
-                  {/* KPI cards */}
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
-                    <KpiCard value={t.facilities}         label="Facilities"         color="#004f9f" bg="#eff6ff" />
-                    <KpiCard value={t.products}           label="Active Products"    color="#0891b2" bg="#ecfeff" />
-                    <KpiCard value={t.approved_protocols} label="Approved Protocols" color="#7c3aed" bg="#f5f3ff" />
-                    <KpiCard value={t.completed_reports}  label="Reports Completed"  color="#16a34a" bg="#f0fdf4" />
-                    <KpiCard value={t.pending_reports}    label="Pending Reports"    color="#ea580c" bg="#fff7ed" />
-                  </div>
-
-                  {/* Charts */}
-                  {(dashView === "both" || dashView === "chart") && (
-                    <div style={{ display: "grid",
-                      gridTemplateColumns: byFac.length > 0 ? "1fr 260px" : "1fr",
-                      gap: 20, marginBottom: 24, alignItems: "start" }}>
-                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0",
-                        borderRadius: 10, padding: "16px 20px" }}>
-                        <div style={{ fontWeight: "bold", fontSize: 13, color: "#1e293b",
-                          marginBottom: 12 }}>Validation Progress by Facility</div>
-                        <FacilityBarChart data={byFac} />
-                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap",
-                          marginTop: 8, justifyContent: "center" }}>
-                          {[
-                            { color: "#60a5fa", label: "Products" },
-                            { color: "#818cf8", label: "Approved Protocols" },
-                            { color: "#34d399", label: "Reports Done" },
-                            { color: "#fb923c", label: "Pending" },
-                          ].map(l => (
-                            <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <div style={{ width: 12, height: 12, borderRadius: 2, background: l.color }} />
-                              <span style={{ fontSize: 11, color: "#475569" }}>{l.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0",
-                        borderRadius: 10, padding: "16px 20px", textAlign: "center" }}>
-                        <div style={{ fontWeight: "bold", fontSize: 13, color: "#1e293b",
-                          marginBottom: 12 }}>Protocol Completion</div>
-                        <div style={{ display: "flex", justifyContent: "center" }}>
-                          <DonutChart completed={t.completed_reports} pending={t.pending_reports} />
-                        </div>
-                        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                          {[
-                            { color: "#22c55e", label: "Reports Completed", val: t.completed_reports },
-                            { color: "#f97316", label: "Pending",           val: t.pending_reports },
-                          ].map(l => (
-                            <div key={l.label} style={{ display: "flex", alignItems: "center",
-                              gap: 8, justifyContent: "center" }}>
-                              <div style={{ width: 12, height: 12, borderRadius: 2, background: l.color }} />
-                              <span style={{ fontSize: 11, color: "#475569" }}>{l.label}</span>
-                              <span style={{ fontSize: 12, fontWeight: "bold", color: "#1e293b" }}>{l.val}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Facility / product table */}
-                  {(dashView === "both" || dashView === "table") && (
-                    <div>
-                      <div style={{ fontWeight: "bold", fontSize: 14, color: "#1e293b", marginBottom: 10 }}>
-                        Breakdown by Facility &amp; Product
-                      </div>
-                      {byFac.length === 0 ? (
-                        <div style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
-                          No facilities found.
-                        </div>
-                      ) : (
-                        <div style={{ borderRadius: 10, border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
-                            <thead>
-                              <tr style={{ background: "#004f9f", color: "white" }}>
-                                <th style={{ ...th, width: 32 }}></th>
-                                <th style={th}>Facility / Product</th>
-                                <th style={{ ...th, textAlign: "center", width: 90 }}>Products</th>
-                                <th style={{ ...th, textAlign: "center", width: 120 }}>Approved Protocols</th>
-                                <th style={{ ...th, textAlign: "center", width: 110 }}>Reports Done</th>
-                                <th style={{ ...th, textAlign: "center", width: 90 }}>Pending</th>
-                                <th style={{ ...th, minWidth: 160 }}>Progress</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {byFac.map((fac, fi) => {
-                                const facProds  = byProd.filter(p => p.facility_id === fac.facility_id);
-                                const isExpanded = expandedFac.has(fac.facility_id);
-                                const rowBg = fi % 2 === 0 ? "white" : "#f8fafc";
-                                return (
-                                  <React.Fragment key={fac.facility_id}>
-                                    <tr style={{ background: rowBg, cursor: "pointer" }}
-                                      onClick={() => toggleFacility(fac.facility_id)}>
-                                      <td style={{ ...td, textAlign: "center", color: "#004f9f",
-                                        fontSize: 16, fontWeight: "bold" }}>
-                                        {isExpanded ? "▾" : "▸"}
-                                      </td>
-                                      <td style={{ ...td, fontWeight: "bold", color: "#1e293b", fontSize: 13 }}>
-                                        {fac.facility_name}
-                                        {facProds.length > 0 && (
-                                          <span style={{ fontSize: 10, color: "#94a3b8",
-                                            marginLeft: 8, fontWeight: "normal" }}>
-                                            {facProds.length} product{facProds.length !== 1 ? "s" : ""}
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td style={{ ...td, textAlign: "center" }}>
-                                        <span style={{ background: "#dbeafe", color: "#1d4ed8",
-                                          borderRadius: 10, padding: "2px 10px", fontWeight: "bold",
-                                          fontSize: 13 }}>{fac.product_count}</span>
-                                      </td>
-                                      <td style={{ ...td, textAlign: "center" }}>
-                                        <span style={{ background: "#ede9fe", color: "#6d28d9",
-                                          borderRadius: 10, padding: "2px 10px", fontWeight: "bold",
-                                          fontSize: 13 }}>{fac.protocol_count}</span>
-                                      </td>
-                                      <td style={{ ...td, textAlign: "center" }}>
-                                        <span style={{ background: "#dcfce7", color: "#15803d",
-                                          borderRadius: 10, padding: "2px 10px", fontWeight: "bold",
-                                          fontSize: 13 }}>{fac.report_count}</span>
-                                      </td>
-                                      <td style={{ ...td, textAlign: "center" }}>
-                                        <span style={{
-                                          background: fac.pending_count > 0 ? "#ffedd5" : "#f1f5f9",
-                                          color: fac.pending_count > 0 ? "#c2410c" : "#94a3b8",
-                                          borderRadius: 10, padding: "2px 10px", fontWeight: "bold",
-                                          fontSize: 13,
-                                        }}>{fac.pending_count}</span>
-                                      </td>
-                                      <td style={td}>
-                                        <ProgressBar value={fac.report_count}
-                                          max={fac.protocol_count || 1} color="#22c55e" />
-                                      </td>
-                                    </tr>
-                                    {isExpanded && facProds.map((prod, pi) => (
-                                      <tr key={prod.product_id}
-                                        style={{ background: pi % 2 === 0 ? "#fafbff" : "#f0f4ff" }}>
-                                        <td style={{ ...td, borderLeft: "4px solid #818cf8" }}></td>
-                                        <td style={{ ...td, paddingLeft: 28, color: "#374151", fontSize: 12 }}>
-                                          <div style={{ fontWeight: 600 }}>{prod.product_name}</div>
-                                          {prod.latest_protocol_at && (
-                                            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
-                                              Last protocol: {fmtDate(prod.latest_protocol_at)}
-                                            </div>
-                                          )}
-                                        </td>
-                                        <td style={{ ...td, textAlign: "center", color: "#94a3b8" }}>—</td>
-                                        <td style={{ ...td, textAlign: "center" }}>
-                                          {prod.protocol_count > 0
-                                            ? <span style={{ background: "#ede9fe", color: "#6d28d9",
-                                                borderRadius: 10, padding: "2px 8px", fontSize: 12,
-                                                fontWeight: "bold" }}>{prod.protocol_count}</span>
-                                            : <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>}
-                                        </td>
-                                        <td style={{ ...td, textAlign: "center" }}>
-                                          {prod.protocol_count > 0
-                                            ? <span style={{ background: "#dcfce7", color: "#15803d",
-                                                borderRadius: 10, padding: "2px 8px", fontSize: 12,
-                                                fontWeight: "bold" }}>{prod.report_count}</span>
-                                            : <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>}
-                                        </td>
-                                        <td style={{ ...td, textAlign: "center" }}>
-                                          {prod.pending_count > 0
-                                            ? <span style={{ background: "#ffedd5", color: "#c2410c",
-                                                borderRadius: 10, padding: "2px 8px", fontSize: 12,
-                                                fontWeight: "bold" }}>{prod.pending_count}</span>
-                                            : prod.protocol_count > 0
-                                              ? <span style={{ background: "#f0fdf4", color: "#16a34a",
-                                                  borderRadius: 10, padding: "2px 8px", fontSize: 12 }}>
-                                                  ✓ Done
-                                                </span>
-                                              : <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>}
-                                        </td>
-                                        <td style={td}>
-                                          {prod.protocol_count > 0
-                                            ? <ProgressBar value={prod.report_count}
-                                                max={prod.protocol_count} color="#818cf8" />
-                                            : <span style={{ fontSize: 11, color: "#cbd5e1",
-                                                fontStyle: "italic" }}>No protocol yet</span>}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                    {isExpanded && facProds.length === 0 && (
-                                      <tr>
-                                        <td />
-                                        <td colSpan={6} style={{ ...td, paddingLeft: 28,
-                                          color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>
-                                          No active products in this facility.
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr style={{ background: "#eff6ff", fontWeight: "bold" }}>
-                                <td style={td}></td>
-                                <td style={{ ...td, color: "#004f9f" }}>Total</td>
-                                <td style={{ ...td, textAlign: "center", color: "#1d4ed8" }}>{t.products}</td>
-                                <td style={{ ...td, textAlign: "center", color: "#6d28d9" }}>{t.approved_protocols}</td>
-                                <td style={{ ...td, textAlign: "center", color: "#15803d" }}>{t.completed_reports}</td>
-                                <td style={{ ...td, textAlign: "center",
-                                  color: t.pending_reports > 0 ? "#c2410c" : "#94a3b8" }}>{t.pending_reports}</td>
-                                <td style={td}>
-                                  <ProgressBar value={t.completed_reports}
-                                    max={t.approved_protocols || 1} color="#004f9f" />
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      )}
-                      <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap",
-                        fontSize: 11, color: "#64748b", padding: "8px 12px", background: "#f8fafc",
-                        borderRadius: 6, border: "1px solid #e2e8f0" }}>
-                        <strong style={{ color: "#374151" }}>Key:</strong>
-                        <span><span style={{ color: "#6d28d9", fontWeight: "bold" }}>Approved Protocols</span> — Final-status protocol archives</span>
-                        <span><span style={{ color: "#15803d", fontWeight: "bold" }}>Reports Done</span> — Completed cleaning validation reports</span>
-                        <span><span style={{ color: "#c2410c", fontWeight: "bold" }}>Pending</span> — Approved protocols without a completed report</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
+        {/* ── CCV TAB ── */}
+        {activeTab === "ccv" && (
+          <ContinuousCleaningVerificationPage
+            noHeader
+            currentUser={currentUser}
+            role={role}
+            goHome={goHome}
+          />
         )}
 
         {/* ── SCHEDULE TAB ── */}
@@ -722,9 +300,79 @@ export default function LifeCycleManagementPage({ goHome, currentUser }) {
             })()}
           </div>
         )}
+
+        {/* ── PERIODIC CLEANING VERIFICATION PROTOCOL TAB ── */}
+        {activeTab === "cvpr-protocol" && (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
+              Periodic Cleaning Verification Protocol
+            </h3>
+            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
+              maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+              The protocol overview — approved protocols, status, and completion progress
+              by facility and product — is available in the <strong>Dashboard</strong>.
+            </p>
+          </div>
+        )}
+
+        {/* ── PERIODIC CLEANING VERIFICATION REPORT TAB ── */}
+        {activeTab === "cvpr-report" && (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
+            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
+              Periodic Cleaning Verification Report
+            </h3>
+            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
+              maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+              The verification report log — completion entries, dates, and recorded-by — is
+              available in the <strong>Dashboard</strong>.
+            </p>
+          </div>
+        )}
+
+        {/* ── DIRTY EQUIPMENT HOLD TIME STUDY TAB ── */}
+        {activeTab === "deht" && (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⏱️</div>
+            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
+              Dirty Equipment Hold Time Study
+            </h3>
+            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
+              maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+              This section will capture hold time studies for dirty equipment — recording
+              the maximum allowable time between end of production and start of cleaning.
+            </p>
+            <div style={{ marginTop: 24, display: "inline-block", padding: "8px 20px",
+              background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8,
+              fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
+              Coming Soon — Under Development
+            </div>
+          </div>
+        )}
+
+        {/* ── CLEAN EQUIPMENT HOLD TIME STUDY TAB ── */}
+        {activeTab === "ceht" && (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
+              Clean Equipment Hold Time Study
+            </h3>
+            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
+              maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+              This section will capture hold time studies for clean equipment — recording
+              the maximum allowable time between cleaning completion and next use.
+            </p>
+            <div style={{ marginTop: 24, display: "inline-block", padding: "8px 20px",
+              background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8,
+              fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+              Coming Soon — Under Development
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Verification password modal */}
+            {/* Verification password modal */}
       {pendingRow && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",

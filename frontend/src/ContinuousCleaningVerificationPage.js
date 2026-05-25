@@ -24,7 +24,7 @@ function compareToLimit(result, limit) {
   return r <= l ? "PASS" : "FAIL";
 }
 
-function ContinuousCleaningVerificationPage({ goHome, currentUser, role }) {
+function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeader = false }) {
   const [activeTab, setActiveTab] = useState("new");
 
   // ── Facility / product selection ─────────────────────────────────
@@ -448,19 +448,21 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role }) {
 
   // ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial", background: "#f1f5f9", minHeight: "100vh" }}>
+    <div style={noHeader ? {} : { padding: "20px", fontFamily: "Arial", background: "#f1f5f9", minHeight: "100vh" }}>
 
-      {/* Header */}
-      <div style={S.pageHeader}>
-        <button onClick={goHome} style={S.backBtn}>← Home</button>
-        <div>
-          <h2 style={{ margin: 0 }}>Continuous Cleaning Verification</h2>
-          <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#aad4ff" }}>
-            Routine post-validation monitoring — one run per report
-          </p>
+      {/* Header — hidden when embedded inside another page */}
+      {!noHeader && (
+        <div style={S.pageHeader}>
+          <button onClick={goHome} style={S.backBtn}>← Home</button>
+          <div>
+            <h2 style={{ margin: 0 }}>Continuous Cleaning Verification</h2>
+            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#aad4ff" }}>
+              Routine post-validation monitoring — one run per report
+            </p>
+          </div>
+          <img src={logo} alt="Cipla" style={{ height: 40, marginLeft: "auto" }} />
         </div>
-        <img src={logo} alt="Cipla" style={{ height: 40, marginLeft: "auto" }} />
-      </div>
+      )}
 
       {/* Tabs */}
       <div style={S.tabBar}>
