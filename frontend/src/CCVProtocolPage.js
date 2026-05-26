@@ -48,7 +48,7 @@ function passFailBadge(val, loq) {
   );
 }
 
-export default function ProtocolPage({ goHome, currentUser, role }) {
+export default function CCVProtocolPage({ goHome, currentUser, role }) {
 
   // ── Core state ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab]   = useState("protocol");
@@ -76,29 +76,6 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
   const [deleteArchivePassword, setDeleteArchivePassword] = useState("");
   const [deletingArchive, setDeletingArchive]   = useState(false);
 
-  // ── Sampling Plan management ───────────────────────────────────────
-  const [samplingPlan, setSamplingPlan]       = useState([]);
-  const [samplingLoading, setSamplingLoading] = useState(false);
-  // add
-  const [showAddSample, setShowAddSample]     = useState(false);
-  const [addSampleCatId, setAddSampleCatId]   = useState(null);
-  const [addSampleCatName, setAddSampleCatName] = useState("");
-  const [addSampleDesc, setAddSampleDesc]     = useState("");
-  const [addSamplePwd, setAddSamplePwd]       = useState("");
-  const [addSampleLoading, setAddSampleLoading] = useState(false);
-  // edit
-  const [showEditSample, setShowEditSample]   = useState(false);
-  const [editSampleEntry, setEditSampleEntry] = useState(null);
-  const [editSampleDesc, setEditSampleDesc]   = useState("");
-  const [editSampleReason, setEditSampleReason] = useState("");
-  const [editSamplePwd, setEditSamplePwd]     = useState("");
-  const [editSampleLoading, setEditSampleLoading] = useState(false);
-  // delete
-  const [showDelSample, setShowDelSample]     = useState(false);
-  const [delSampleEntry, setDelSampleEntry]   = useState(null);
-  const [delSamplePwd, setDelSamplePwd]       = useState("");
-  const [deletingSample, setDeletingSample]   = useState(false);
-
   // ── Report management ──────────────────────────────────────────────
   const [reportFacility, setReportFacility] = useState("");
   const [reportProduct, setReportProduct]   = useState("");
@@ -110,8 +87,6 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
   const [reportListError, setReportListError] = useState("");
   const [runResults, setRunResults] = useState([
     { run_number: 1, batch_number: "", equipment_results: [] },
-    { run_number: 2, batch_number: "", equipment_results: [] },
-    { run_number: 3, batch_number: "", equipment_results: [] },
   ]);
   const [trainingDetails, setTrainingDetails] = useState("");
   const [sopFollowed, setSOPFollowed] = useState("");
@@ -139,9 +114,9 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
   // ── Derived display (live vs archived) ─────────────────────────────
   const displayResult        = archiveDoc?.result        ?? result;
   const displaySourceProduct = archiveDoc?.sourceProduct ?? sourceProduct;
-  const displaySamplingPlan  = archiveDoc?.samplingPlan  ?? protocolSamplingPlan;
+  const displaySamplingPlan  = protocolSamplingPlan; // always live — never use frozen archive copy
   const displayDocNumber     = archiveDoc?.docNumber ??
-    (result ? `CL-PROTO-${String(sourceProduct?.product_id || "").padStart(4, "0")}-${new Date().getFullYear()}` : "—");
+    (result ? `PCV-PROTO-${String(sourceProduct?.product_id || "").padStart(4, "0")}-${new Date().getFullYear()}` : "—");
   const getFacilityName = (fid) =>
     archiveDoc ? archiveDoc.facilityName
                : (facilities.find(f => f.facility_id === fid)?.facility_name || fid);
@@ -150,6 +125,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
   useEffect(() => {
     api.get("/facility/all").then(r => setFacilities(r.data)).catch(console.log);
     api.get("/policy").then(r => setPolicy(r.data)).catch(console.log);
+    api.get("/sampling/plan").then(r => setProtocolSamplingPlan(r.data)).catch(console.log);
   }, []);
 
   useEffect(() => {
@@ -161,22 +137,14 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
 
   useEffect(() => {
     if (activeTab === "archive") loadArchives();
-    if (activeTab === "sampling") loadSamplingPlan();
     if (activeTab === "report") loadReportList();
   }, [activeTab]);
 
   const loadArchives = async () => {
     setArchiveLoading(true);
-    try { const r = await api.get("/protocol/archives"); setArchiveList(r.data.filter(a => !a.doc_number || a.doc_number.startsWith("CL-PROTO-"))); }
+    try { const r = await api.get("/protocol/archives"); setArchiveList(r.data.filter(a => a.doc_number?.startsWith("PCV-PROTO-"))); }
     catch (e) { console.log(e); }
     finally { setArchiveLoading(false); }
-  };
-
-  const loadSamplingPlan = async () => {
-    setSamplingLoading(true);
-    try { const r = await api.get("/sampling/plan"); setSamplingPlan(r.data); }
-    catch (e) { console.log(e); }
-    finally { setSamplingLoading(false); }
   };
 
   // ── Protocol generation ────────────────────────────────────────────
@@ -215,7 +183,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     setSaveLoading(true);
     try {
       const facilityName = facilities.find(f => f.facility_id === sourceProduct.facility_id)?.facility_name || "";
-      const docNum = `CL-PROTO-${String(sourceProduct.product_id).padStart(4, "0")}-${new Date().getFullYear()}`;
+      const docNum = `PCV-PROTO-${String(sourceProduct.product_id).padStart(4, "0")}-${new Date().getFullYear()}`;
       const snapshot = { result, sourceProduct, facilityName, docNumber: docNum, samplingPlan: protocolSamplingPlan };
       const res = await api.post("/protocol/archive", {
         snapshot, doc_number: docNum, product_id: sourceProduct.product_id,
@@ -241,60 +209,6 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     finally { setDeletingArchive(false); }
   };
 
-  // ── Sampling plan CRUD ─────────────────────────────────────────────
-  const openAddSample = (cat) => {
-    setAddSampleCatId(cat.category_id); setAddSampleCatName(cat.category_name);
-    setAddSampleDesc(""); setAddSamplePwd(""); setShowAddSample(true);
-  };
-
-  const confirmAddSample = async () => {
-    if (!addSampleDesc.trim()) { alert("Enter location description ❌"); return; }
-    if (!addSamplePwd.trim()) { alert("Enter your password ❌"); return; }
-    setAddSampleLoading(true);
-    try {
-      await api.post("/sampling/plan/entry", {
-        category_id: addSampleCatId, location_description: addSampleDesc.trim(), password: addSamplePwd });
-      setShowAddSample(false);
-      loadSamplingPlan();
-    } catch (e) { alert(apiError(e, "Error adding location.")); }
-    finally { setAddSampleLoading(false); }
-  };
-
-  const openEditSample = (entry) => {
-    setEditSampleEntry(entry); setEditSampleDesc(entry.location_description);
-    setEditSampleReason(""); setEditSamplePwd(""); setShowEditSample(true);
-  };
-
-  const confirmEditSample = async () => {
-    if (!editSampleDesc.trim()) { alert("Enter description ❌"); return; }
-    if (!editSampleReason.trim()) { alert("Enter reason ❌"); return; }
-    if (!editSamplePwd.trim()) { alert("Enter password ❌"); return; }
-    setEditSampleLoading(true);
-    try {
-      await api.put(`/sampling/plan/entry/${editSampleEntry.entry_id}`,
-        { location_description: editSampleDesc.trim(), password: editSamplePwd, reason: editSampleReason });
-      setShowEditSample(false);
-      loadSamplingPlan();
-    } catch (e) { alert(apiError(e, "Error updating location.")); }
-    finally { setEditSampleLoading(false); }
-  };
-
-  const openDelSample = (entry) => {
-    setDelSampleEntry(entry); setDelSamplePwd(""); setShowDelSample(true);
-  };
-
-  const confirmDelSample = async () => {
-    if (!delSamplePwd.trim()) { alert("Enter your password ❌"); return; }
-    setDeletingSample(true);
-    try {
-      await api.delete(`/sampling/plan/entry/${delSampleEntry.entry_id}`,
-        { data: { password: delSamplePwd, reason: "Sample location removed" } });
-      setShowDelSample(false);
-      loadSamplingPlan();
-    } catch (e) { alert(apiError(e, "Error deleting location.")); }
-    finally { setDeletingSample(false); }
-  };
-
   // ── Report management ──────────────────────────────────────────────
   useEffect(() => {
     if (!reportFacility) { setReportProducts([]); setReportProduct(""); setApprovedProtocols([]); return; }
@@ -311,10 +225,10 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     setProtocolsNotice("");
     api.post("/report/approved-protocols", null, { params: { facility_id: parseInt(reportFacility), product_id: parseInt(reportProduct) } })
       .then(r => {
-        const clOnly = r.data.filter(p => p.doc_number?.startsWith("CL-PROTO-"));
-        setApprovedProtocols(clOnly);
-        if (clOnly.length === 0)
-          setProtocolsNotice("No approved protocols found for this product. Go to the Archive tab, generate a MACO protocol and set its status to Final before creating a report.");
+        const pcvOnly = r.data.filter(p => p.doc_number?.startsWith("PCV-PROTO-"));
+        setApprovedProtocols(pcvOnly);
+        if (pcvOnly.length === 0)
+          setProtocolsNotice("No approved PCV protocols found for this product. Go to the Archive tab, generate a PCV protocol and set its status to Final before creating a report.");
       })
       .catch(e => setProtocolsNotice(apiError(e, "Failed to load protocols. Please try again.")))
       .finally(() => setProtocolsLoading(false));
@@ -503,7 +417,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
       const res = await api.get("/report/list", {
         params: { facility_id: reportFacility || undefined, product_id: reportProduct || undefined }
       });
-      setReportList(res.data.filter(r => !r.doc_number || r.doc_number.startsWith("CL-PROTO-")));
+      setReportList(res.data.filter(r => r.doc_number?.startsWith("PCV-PROTO-")));
     } catch (e) {
       setReportListError(apiError(e, "Failed to load reports. Please try again."));
     } finally { setReportListLoading(false); }
@@ -527,7 +441,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     try {
       await api.post(`/report/${approveTarget.report_id}/approve`,
         { password: approvePwd, reason: "Report approved" });
-      alert(`Report approved ✅ — this product is now eligible for Continuous Cleaning Verification.`);
+      alert(`Report approved ✅ — this product is now eligible for Periodic Cleaning Verification.`);
       setShowApproveModal(false);
       setApprovePwd("");
       loadReportList();
@@ -568,7 +482,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     const fmt = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
     const win = window.open("", "_blank");
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<title>Cleaning Validation Report — ${product_name}</title>
+<title>PCV Validation Report — ${product_name}</title>
 <style>
 @page{size:A4 landscape;margin:18mm 12mm 15mm 12mm}
 *,*::before,*::after{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -593,7 +507,7 @@ div{overflow:visible!important;max-width:100%}
 <div class="rh">
   <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
-    <p class="rh-title">Cleaning Validation Report</p>
+    <p class="rh-title">PCV Validation Report</p>
     <p class="rh-sub">Archived Report — ${product_name}</p>
   </div>
   <div class="rh-meta">
@@ -651,7 +565,7 @@ ${reportPrintRef.current.innerHTML}
       return false;
     }
     if (!completionDate) {
-      alert("Completion date (Run-3 completed date) is required ❌");
+      alert("Completion date (Run completed date) is required ❌");
       return false;
     }
     return true;
@@ -695,8 +609,6 @@ ${reportPrintRef.current.innerHTML}
       setExistingReportForProtocol(null);
       setRunResults([
         { run_number: 1, batch_number: "", equipment_results: [] },
-        { run_number: 2, batch_number: "", equipment_results: [] },
-        { run_number: 3, batch_number: "", equipment_results: [] },
       ]);
       loadReportList();
     } catch (e) { alert(apiError(e, "Error submitting report.")); }
@@ -760,7 +672,7 @@ ${reportPrintRef.current.innerHTML}
     const win = window.open("", "_blank");
     const versionLabel = archiveDoc ? ` — Version ${archiveDoc.meta.version}` : "";
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<title>Cleaning Validation Protocol — ${displayDocNumber}${versionLabel}</title>
+<title>Periodic Cleaning Verification Protocol — ${displayDocNumber}${versionLabel}</title>
 <style>
 @page{size:A4 portrait;margin:22mm 14mm 18mm 14mm}
 *,*::before,*::after{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -793,7 +705,7 @@ div{overflow:visible!important;max-width:100%}
 <div class="rh">
   <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
-    <p class="rh-title">Cleaning Validation Protocol</p>
+    <p class="rh-title">Periodic Cleaning Verification Protocol</p>
     <p class="rh-sub">Cleaning Limit Calculation — MACO Methodology</p>
   </div>
   <div class="rh-meta">
@@ -857,7 +769,7 @@ ${printRef.current.innerHTML}
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <h3 style={S.docTitle}>Cleaning Validation Protocol</h3>
+                <h3 style={S.docTitle}>Periodic Cleaning Verification Protocol</h3>
                 <p style={S.docSub}>Cleaning Limit Calculation — MACO Methodology</p>
               </div>
               <table style={S.metaTable}><tbody>
@@ -1398,7 +1310,7 @@ ${printRef.current.innerHTML}
             protocol. All samples shall be collected after the cleaning procedure and before the next product manufacture.</p>
           {relevantPlan.length === 0
             ? <p style={{ color: "#888", fontStyle: "italic", fontSize: "12px" }}>
-                No sampling plan configured. Configure locations in the Sampling Plan tab.
+                No sampling plan configured. Configure locations in the Protocol &amp; Report page (Sampling Plan tab).
               </p>
             : relevantPlan.map(cat => (
               <div key={cat.category_id} className="sampling-cat-block"
@@ -1441,7 +1353,7 @@ ${printRef.current.innerHTML}
 
         {/* Footer */}
         <div style={S.docFooter} className="doc-footer">
-          <span>Cipla Ltd. — Confidential | Cleaning Validation Protocol</span>
+          <span>Cipla Ltd. — Confidential | Periodic Cleaning Verification Protocol</span>
           <span>{displayDocNumber}{archiveDoc ? ` v${archiveDoc.meta.version}` : ""}</span>
           <span>Generated by: {archiveDoc ? archiveDoc.meta.generated_by : currentUser}</span>
         </div>
@@ -1470,7 +1382,7 @@ ${printRef.current.innerHTML}
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <h3 style={S.docTitle}>Cleaning Validation Report</h3>
+                <h3 style={S.docTitle}>PCV Validation Report</h3>
                 <p style={S.docSub}>Archived Report — {product_name}</p>
               </div>
               <table style={S.metaTable}><tbody>
@@ -1495,7 +1407,7 @@ ${printRef.current.innerHTML}
             <tr>
               <td style={S.tdKey}>Validation Start Date</td>
               <td style={S.tdVal}>{startDate ? new Date(startDate).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—"}</td>
-              <td style={S.tdKey}>Completion Date (Run-3)</td>
+              <td style={S.tdKey}>Completion Date (Run)</td>
               <td style={S.tdVal}>{completionDate ? new Date(completionDate).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—"}</td>
             </tr>
             <tr>
@@ -1655,7 +1567,7 @@ ${printRef.current.innerHTML}
 
         {/* Footer */}
         <div style={S.docFooter} className="doc-footer">
-          <span>Cipla Ltd. — Confidential | Cleaning Validation Report</span>
+          <span>Cipla Ltd. — Confidential | PCV Validation Report</span>
           <span>{product_name} — {facility_name}</span>
           <span>Submitted by: {submitted_by}</span>
         </div>
@@ -1668,13 +1580,13 @@ ${printRef.current.innerHTML}
     <div style={{ padding: "20px", fontFamily: "Arial", background: "#f1f5f9", minHeight: "100vh" }}>
 
       <div style={S.pageHeader}>
-        <h2 style={{ margin: 0 }}>Cleaning Validation Protocol & Report</h2>
+        <h2 style={{ margin: 0 }}>Periodic Cleaning Validation Protocol & Report</h2>
         <button onClick={goHome} style={S.backBtn}>Back to Home</button>
       </div>
 
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {[["protocol","Protocol"],["archive","Archive"],["sampling","Sampling Plan"],["report","Report"]].map(([t,label]) => (
+        {[["protocol","Protocol"],["archive","Archive"],["report","Report"]].map(([t,label]) => (
           <button key={t} onClick={() => setActiveTab(t)}
             style={activeTab === t ? S.tabActive : S.tabInactive}>{label}</button>
         ))}
@@ -1811,87 +1723,12 @@ ${printRef.current.innerHTML}
         </div>
       )}
 
-      {/* ── SAMPLING PLAN TAB ────────────────────────────────── */}
-      {activeTab === "sampling" && (
-        <div style={{ background: "white", borderRadius: "0 10px 10px 10px", padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <div>
-              <h3 style={{ margin: 0, color: "#004f9f" }}>Swab Sampling Plan Configuration</h3>
-              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#888" }}>
-                Configure swab sample locations per equipment category. Sample numbers (S-XXXX) are globally unique and never reused.
-              </p>
-            </div>
-            <button onClick={loadSamplingPlan} style={S.refreshBtn}>🔄 Refresh</button>
-          </div>
-
-          {samplingLoading ? <p style={{ color: "#888" }}>Loading…</p>
-          : samplingPlan.length === 0
-            ? <p style={{ color: "#888" }}>No equipment categories found. Add categories in Equipment Master first.</p>
-            : samplingPlan.map(cat => (
-              <div key={cat.category_id} style={{ marginBottom: "20px", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
-                {/* Category header */}
-                <div style={{ background: "#004f9f", color: "white", padding: "12px 16px",
-                  display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: "bold", fontSize: "14px" }}>{cat.category_name}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ fontSize: "12px", opacity: 0.85 }}>
-                      {cat.entries.length} sample location{cat.entries.length !== 1 ? "s" : ""}
-                    </span>
-                    {role !== "VIEWER" && (
-                      <button onClick={() => openAddSample(cat)}
-                        style={{ padding: "4px 12px", background: "white", color: "#004f9f",
-                          border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>
-                        + Add Location
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {cat.entries.length === 0 ? (
-                  <div style={{ padding: "20px 16px", color: "#aaa", fontSize: "13px", textAlign: "center" }}>
-                    No sample locations configured for this category.
-                    {role !== "VIEWER" && <span> Click <strong>+ Add Location</strong> to begin.</span>}
-                  </div>
-                ) : (
-                  <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "13px" }}>
-                    <thead>
-                      <tr style={{ background: "#f0f4ff" }}>
-                        <th style={sampCell}>Sample No.</th>
-                        <th style={sampCell}>Location / Description</th>
-                        {role !== "VIEWER" && <th style={{ ...sampCell, width: "120px" }}>Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cat.entries.map((entry, i) => (
-                        <tr key={entry.entry_id} style={{ background: i % 2 === 0 ? "white" : "#f8fafc" }}>
-                          <td style={{ ...sampCell, fontFamily: "monospace", fontWeight: "bold", color: "#004f9f", width: "110px" }}>
-                            {entry.sample_number}
-                          </td>
-                          <td style={sampCell}>{entry.location_description}</td>
-                          {role !== "VIEWER" && (
-                            <td style={sampCell}>
-                              <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                                <button onClick={() => openEditSample(entry)} style={S.editBtn}>✏️ Edit</button>
-                                <button onClick={() => openDelSample(entry)} style={S.deleteBtn}>🗑</button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
-        </div>
-      )}
-
       {/* ── REPORT TAB ───────────────────────────────────────── */}
       {activeTab === "report" && (
         <div style={{ background: "white", borderRadius: "0 10px 10px 10px", padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
           {!viewingReport ? (
             <>
-              <h3 style={{ color: "#004f9f", marginTop: 0 }}>Create Cleaning Validation Report</h3>
+              <h3 style={{ color: "#004f9f", marginTop: 0 }}>Create Periodic Cleaning Verification Report</h3>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end", marginBottom: "20px" }}>
                 <div>
@@ -1960,7 +1797,7 @@ ${printRef.current.innerHTML}
                     ))}
                   </div>
 
-                  {/* Combined results table — all 3 runs side by side */}
+                  {/* Combined results table */}
                   {runResults[0]?.equipment_results.length === 0 ? (
                     <p style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>No equipment configured for this protocol.</p>
                   ) : (
@@ -2109,14 +1946,14 @@ ${printRef.current.innerHTML}
                         <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>Auto-filled — date protocol was approved</p>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label style={S.label}>Completion Date (Run-3) *</label>
+                        <label style={S.label}>Completion Date (Run) *</label>
                         <input
                           type="date"
                           value={completionDate}
                           onChange={e => setCompletionDate(e.target.value)}
                           max={new Date().toISOString().split("T")[0]}
                           style={S.input} />
-                        <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>Date Run-3 was completed</p>
+                        <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>Date Run was completed</p>
                       </div>
                     </div>
 
@@ -2309,89 +2146,10 @@ ${printRef.current.innerHTML}
         </div></div>
       )}
 
-      {/* Add sample location */}
-      {showAddSample && (
-        <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#004f9f", marginTop: 0 }}>Add Sample Location</h3>
-          <p style={{ fontSize: "13px", color: "#555" }}>
-            Category: <strong>{addSampleCatName}</strong><br/>
-            A unique sample number (S-XXXX) will be auto-assigned.
-          </p>
-          <label style={S.label}>Location / Description *</label>
-          <input placeholder="e.g. Inner wall, top section"
-            value={addSampleDesc} onChange={e => setAddSampleDesc(e.target.value)} style={S.input} autoFocus />
-          <label style={S.label}>Your Password *</label>
-          <input type="password" placeholder="Enter your password"
-            value={addSamplePwd} onChange={e => setAddSamplePwd(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") confirmAddSample(); }} style={S.input} />
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={confirmAddSample} disabled={addSampleLoading}
-              style={addSampleLoading ? S.saveBtnDisabled : S.saveBtn}>
-              {addSampleLoading ? "Adding..." : "Add Location"}
-            </button>
-            <button onClick={() => setShowAddSample(false)} style={S.cancelBtn}>Cancel</button>
-          </div>
-        </div></div>
-      )}
-
-      {/* Edit sample location */}
-      {showEditSample && editSampleEntry && (
-        <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#004f9f", marginTop: 0 }}>✏️ Edit Sample Location</h3>
-          <p style={{ fontSize: "13px", color: "#555" }}>
-            Sample: <code style={{ background: "#eef4ff", color: "#004f9f", padding: "1px 6px", borderRadius: "3px",
-              fontFamily: "monospace", fontWeight: "bold" }}>{editSampleEntry.sample_number}</code>
-            <span style={{ marginLeft: "8px", fontSize: "11px", color: "#888" }}>Sample number cannot be changed</span>
-          </p>
-          <label style={S.label}>Location / Description *</label>
-          <input value={editSampleDesc} onChange={e => setEditSampleDesc(e.target.value)} style={S.input} autoFocus />
-          <label style={S.label}>Reason for Change *</label>
-          <input placeholder="Enter reason..."
-            value={editSampleReason} onChange={e => setEditSampleReason(e.target.value)} style={S.input} />
-          <label style={S.label}>Your Password *</label>
-          <input type="password" placeholder="Enter your password"
-            value={editSamplePwd} onChange={e => setEditSamplePwd(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") confirmEditSample(); }} style={S.input} />
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={confirmEditSample} disabled={editSampleLoading}
-              style={editSampleLoading ? S.saveBtnDisabled : S.saveBtn}>
-              {editSampleLoading ? "Saving..." : "Save Changes"}
-            </button>
-            <button onClick={() => setShowEditSample(false)} style={S.cancelBtn}>Cancel</button>
-          </div>
-        </div></div>
-      )}
-
-      {/* Delete sample location */}
-      {showDelSample && delSampleEntry && (
-        <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#dc3545", marginTop: 0 }}>Remove Sample Location</h3>
-          <p style={{ fontSize: "13px" }}>
-            Removing: <code style={{ background: "#eef4ff", color: "#004f9f", padding: "1px 6px",
-              borderRadius: "3px", fontFamily: "monospace", fontWeight: "bold" }}>{delSampleEntry.sample_number}</code>
-            <br/><span style={{ color: "#888" }}>{delSampleEntry.location_description}</span>
-          </p>
-          <p style={{ fontSize: "12px", color: "#856404", background: "#fff3cd", padding: "8px 10px", borderRadius: "5px" }}>
-            The sample number will not be reused even after deletion.
-          </p>
-          <label style={S.label}>Your Password *</label>
-          <input type="password" placeholder="Enter your password"
-            value={delSamplePwd} onChange={e => setDelSamplePwd(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") confirmDelSample(); }} style={S.input} autoFocus />
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={confirmDelSample} disabled={deletingSample}
-              style={deletingSample ? S.saveBtnDisabled : { ...S.saveBtn, background: "#dc3545" }}>
-              {deletingSample ? "Removing..." : "Confirm Remove"}
-            </button>
-            <button onClick={() => setShowDelSample(false)} style={S.cancelBtn}>Cancel</button>
-          </div>
-        </div></div>
-      )}
-
       {/* Delete report */}
       {showDeleteReportModal && deleteReportTarget && (
         <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#dc3545", marginTop: 0 }}>Delete Cleaning Validation Report</h3>
+          <h3 style={{ color: "#dc3545", marginTop: 0 }}>Delete PCV Validation Report</h3>
           <p style={{ fontSize: "13px" }}>
             <strong>{deleteReportTarget.product_name}</strong> — {deleteReportTarget.facility_name}<br/>
             <span style={{ color: "#888" }}>Submitted by {deleteReportTarget.submitted_by} on {deleteReportTarget.submitted_at ? new Date(deleteReportTarget.submitted_at).toLocaleDateString("en-IN") : "—"}</span>
@@ -2417,13 +2175,13 @@ ${printRef.current.innerHTML}
       {/* Approve report */}
       {showApproveModal && approveTarget && (
         <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#155724", marginTop: 0 }}>Approve Cleaning Validation Report</h3>
+          <h3 style={{ color: "#155724", marginTop: 0 }}>Approve PCV Validation Report</h3>
           <p style={{ fontSize: "13px" }}>
             <strong>{approveTarget.product_name}</strong> — {approveTarget.facility_name}<br/>
             <span style={{ color: "#888" }}>Submitted by {approveTarget.submitted_by}</span>
           </p>
           <p style={{ fontSize: "12px", background: "#d4edda", padding: "8px 10px", borderRadius: "5px", color: "#155724", marginBottom: "14px" }}>
-            Once approved, this product becomes eligible for Continuous Cleaning Verification (CCV) runs.
+            Once approved, this product becomes eligible for Periodic Cleaning Verification (PCV) runs.
           </p>
           <label style={S.label}>Your Password *</label>
           <input type="password" value={approvePwd}
@@ -2443,12 +2201,12 @@ ${printRef.current.innerHTML}
       {/* Submit report */}
       {showSubmitReportModal && (
         <div style={S.overlay}><div style={S.modal}>
-          <h3 style={{ color: "#004f9f", marginTop: 0 }}>Submit Cleaning Validation Report</h3>
+          <h3 style={{ color: "#004f9f", marginTop: 0 }}>Submit PCV Validation Report</h3>
           <p style={{ fontSize: "13px", color: "#555", marginBottom: "16px" }}>
             Submit report for <strong>{selectedProtocol?.doc_number || "Protocol"}</strong> · <strong>{reportProducts.find(p => p.product_id === parseInt(reportProduct))?.product_name || "Product"}</strong>
           </p>
           <p style={{ fontSize: "12px", background: "#f0f4ff", padding: "8px 10px", borderRadius: "5px", marginBottom: "16px" }}>
-            • 3 runs with batch numbers<br/>
+            • 1 run with batch number<br/>
             • All equipment results entered (rinse & swab)<br/>
             • Training details and SOP recorded
           </p>

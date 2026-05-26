@@ -188,9 +188,11 @@ function MatrixPage({ goHome, currentUser, role }) {
           }
 
         } catch (err) {
+          const reason = err?.response?.data?.detail || err?.message || "Calculation failed";
           summaryRows.push({
             source: p.product_name,
             limiting_target: "Error",
+            error_reason: reason,
             governing_maco: "—",
             governing_method: "—",
             rinse_pde: "—", rinse_dose: "—", rinse_10ppm: "—", rinse_final: "—",
@@ -753,7 +755,20 @@ function MatrixPage({ goHome, currentUser, role }) {
                       <tr key={index}
                         style={{ background: index % 2 === 0 ? "#f8fafc" : "white" }}>
                         <td style={{ ...cell, fontWeight: "bold" }}>{row.source}</td>
-                        <td style={cell}>{row.limiting_target}</td>
+                        <td style={cell}>
+                          {row.limiting_target === "Error"
+                            ? <span title={row.error_reason}
+                                style={{ color: "#dc3545", fontWeight: "bold", cursor: "help",
+                                  display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                ⚠ Error
+                                <span style={{ fontSize: "10px", color: "#6c757d", fontWeight: "normal",
+                                  maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap", display: "inline-block" }}>
+                                  — {row.error_reason}
+                                </span>
+                              </span>
+                            : row.limiting_target}
+                        </td>
                         <td style={{ ...cell, color: "#004f9f", fontWeight: "bold" }}>
                           {row.governing_maco}
                         </td>

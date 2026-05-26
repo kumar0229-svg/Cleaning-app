@@ -13,6 +13,8 @@ import NlpQueryPage from "./NlpQueryPage";
 import HelpPage from "./HelpPage";
 import LifeCycleManagementPage from "./LifeCycleManagementPage";
 import DashboardPage from "./DashboardPage";
+import CCVProtocolPage from "./CCVProtocolPage";
+import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import logo from "./assets/cipla-logo.png";
 
 const icons = {
@@ -127,6 +129,17 @@ const icons = {
       <rect x="14" y="14" width="7" height="7" rx="1"/>
     </svg>
   ),
+  /* CCV Protocol & Report — document with refresh cycle */
+  ccvprotocol: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <line x1="8" y1="7" x2="16" y2="7"/>
+      <line x1="8" y1="11" x2="16" y2="11"/>
+      <line x1="8" y1="15" x2="11" y2="15"/>
+      <path d="M13 17a3 3 0 1 0 5.5-1.5"/>
+      <polyline points="18.5 14 18.5 15.5 20 15.5"/>
+    </svg>
+  ),
   /* Continuous Cleaning Verification / recurring check cycle */
   ccv: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
@@ -135,6 +148,17 @@ const icons = {
       <polyline points="19 5 19.93 9 15.93 9"/>
       <polyline points="5 19 4.07 15 8.07 15"/>
       <polyline points="9 12 11 14 15 10"/>
+    </svg>
+  ),
+  /* Genotoxic & Nitrosamine Impurity / DNA double helix */
+  genotoxic: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+      <path d="M8 3 C10 6 14 8 16 11 C14 14 10 16 8 19 C10 22 14 23 16 21"/>
+      <path d="M16 3 C14 6 10 8 8 11 C10 14 14 16 16 19 C14 22 10 23 8 21"/>
+      <line x1="8.5" y1="8" x2="15.5" y2="8"/>
+      <line x1="8" y1="11" x2="16" y2="11"/>
+      <line x1="8.5" y1="14" x2="15.5" y2="14"/>
+      <line x1="8" y1="17" x2="16" y2="17"/>
     </svg>
   ),
   /* Life Cycle Management / timeline with milestones */
@@ -306,6 +330,8 @@ function App() {
   if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => setPage("home")} /></>;
   if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => setPage("home")} currentUser={user} /></>;
   if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
+  if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
+  if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
 
   const cards = [
     { key: "dashboard", label: "Dashboard",          color: "#e0f2fe" },
@@ -313,8 +339,10 @@ function App() {
     { key: "equipment", label: "Equipment",          color: "#eaf7ee" },
     { key: "product",   label: "Product",            color: "#fef3e2" },
     { key: "matrix",    label: "Matrix",             color: "#f0ebfb" },
-    { key: "protocol",  label: "Protocol & Report",  color: "#e8f5e9" },
-    { key: "lifecycle", label: "Life Cycle Management", color: "#f0ebfb" },
+    { key: "protocol",     label: "Cleaning Validation Protocol & Report", color: "#e8f5e9" },
+    { key: "ccvprotocol", label: "Periodic Cleaning Validation Protocol & Report", color: "#ecfdf5" },
+    { key: "lifecycle",   label: "Life Cycle Management",   color: "#f0ebfb" },
+    { key: "genotoxic",   label: "Genotoxic and Nitrosamine Impurity", color: "#fff0f0" },
     { key: "audit",     label: "Audit",              color: "#fde8e8" },
     { key: "query",     label: "Query",              color: "#e2f4fb" },
   ];

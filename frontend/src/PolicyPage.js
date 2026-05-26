@@ -68,7 +68,16 @@ function PolicyPage({ goHome, currentUser, role }) {
   const [intervalPassword,  setIntervalPassword]  = useState("");
   const [savingInterval,    setSavingInterval]    = useState(false);
 
-  useEffect(() => { loadPolicy(); loadInterval(); }, []);
+  // DEHT hours
+  const [currentDehtHours,  setCurrentDehtHours]  = useState(72);
+  const [selectedDehtHours, setSelectedDehtHours] = useState(72);
+  const [dehtUpdatedBy, setDehtUpdatedBy] = useState("");
+  const [dehtUpdatedAt, setDehtUpdatedAt] = useState("");
+  const [showDehtModal, setShowDehtModal] = useState(false);
+  const [dehtPassword,  setDehtPassword]  = useState("");
+  const [savingDeht,    setSavingDeht]    = useState(false);
+
+  useEffect(() => { loadPolicy(); loadInterval(); loadDehtHours(); }, []);
 
   const loadPolicy = async () => {
     setLoading(true);
@@ -100,6 +109,33 @@ function PolicyPage({ goHome, currentUser, role }) {
       setIntervalUpdatedBy(res.data.updated_by || "");
       setIntervalUpdatedAt(res.data.updated_at || "");
     } catch { /* non-critical */ }
+  };
+
+  const loadDehtHours = async () => {
+    try {
+      const res = await api.get("/lifecycle/deht-hours");
+      setCurrentDehtHours(res.data.hours);
+      setSelectedDehtHours(res.data.hours);
+      setDehtUpdatedBy(res.data.updated_by || "");
+      setDehtUpdatedAt(res.data.updated_at || "");
+    } catch { /* non-critical */ }
+  };
+
+  const confirmDehtSave = async () => {
+    if (!dehtPassword) { alert("Enter your password ❌"); return; }
+    setSavingDeht(true);
+    try {
+      await api.put("/lifecycle/deht-hours", { hours: selectedDehtHours, password: dehtPassword });
+      setCurrentDehtHours(selectedDehtHours);
+      setDehtUpdatedBy(currentUser);
+      setDehtUpdatedAt(new Date().toISOString());
+      setShowDehtModal(false);
+      alert(`DEHT limit updated to ${selectedDehtHours} hours ✅`);
+    } catch (err) {
+      alert(err.response?.data?.detail || "Save failed ❌");
+    } finally {
+      setSavingDeht(false);
+    }
   };
 
   const confirmIntervalSave = async () => {
@@ -342,6 +378,53 @@ function PolicyPage({ goHome, currentUser, role }) {
         </div>
       </div>
 
+      {/* Dirty Equipment Hold Time (DEHT) Limit */}
+      <div style={{ marginTop: "28px", background: "white", borderRadius: "10px", padding: "18px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", borderLeft: "4px solid #0891b2" }}>
+        <p style={{ margin: "0 0 4px", fontWeight: "bold", fontSize: "14px", color: "#164e63" }}>Dirty Equipment Hold Time (DEHT) Limit</p>
+        <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#888" }}>
+          Maximum allowable time (in hours) between end of equipment usage and start of cleaning. Used in DEHT Study Protocol and Report generation.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
+          <div style={{ background: "#ecfeff", border: "1px solid #a5f3fc", borderRadius: "8px", padding: "12px 18px", minWidth: 160 }}>
+            <div style={{ fontSize: "11px", color: "#0891b2", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>Current DEHT Limit</div>
+            <div style={{ fontSize: "22px", fontWeight: "bold", color: "#164e63" }}>{currentDehtHours} Hours</div>
+            {dehtUpdatedBy && (
+              <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+                Set by {dehtUpdatedBy}{dehtUpdatedAt ? ` on ${new Date(dehtUpdatedAt).toLocaleDateString("en-IN")}` : ""}
+              </div>
+            )}
+          </div>
+          {(role === "ADMIN" || role === "QA") && (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#555", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
+                  New Limit (Hours)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="720"
+                  value={selectedDehtHours}
+                  onChange={e => setSelectedDehtHours(Number(e.target.value))}
+                  style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", width: "100px" }}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (selectedDehtHours === currentDehtHours) { alert("No change to save."); return; }
+                  if (selectedDehtHours < 1 || selectedDehtHours > 720) { alert("DEHT hours must be 1–720."); return; }
+                  setDehtPassword("");
+                  setShowDehtModal(true);
+                }}
+                style={{ marginTop: "18px", padding: "8px 18px", background: "#0891b2", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "13px" }}
+              >
+                Save DEHT Limit
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Formula reference */}
       <div style={styles.formulaBox}>
         <p style={styles.formulaTitle}>Formula Reference (API Source Products)</p>
@@ -390,6 +473,36 @@ function PolicyPage({ goHome, currentUser, role }) {
                 {savingInterval ? "Saving..." : "Confirm"}
               </button>
               <button onClick={() => setShowIntervalModal(false)} style={styles.cancelModalBtn}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DEHT confirm modal */}
+      {showDehtModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <h3 style={{ margin: "0 0 6px", fontSize: "16px" }}>Confirm DEHT Limit Change</h3>
+            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#555" }}>
+              Changing DEHT limit to{" "}
+              <strong style={{ color: "#0891b2" }}>{selectedDehtHours} Hours</strong>.
+            </p>
+            <label style={styles.modalLabel}>Your Password</label>
+            <input
+              type="password"
+              value={dehtPassword}
+              onChange={e => setDehtPassword(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirmDehtSave(); }}
+              placeholder="Enter your login password"
+              style={styles.modalInput}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+              <button onClick={confirmDehtSave} disabled={savingDeht}
+                style={savingDeht ? styles.confirmDisabled : { ...styles.confirmBtn, background: "#0891b2" }}>
+                {savingDeht ? "Saving..." : "Confirm"}
+              </button>
+              <button onClick={() => setShowDehtModal(false)} style={styles.cancelModalBtn}>Cancel</button>
             </div>
           </div>
         </div>

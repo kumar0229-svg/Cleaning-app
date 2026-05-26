@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "./api";
 import ContinuousCleaningVerificationPage from "./ContinuousCleaningVerificationPage";
+import DEHTPage from "./DEHTPage";
 
 // ── Helper ────────────────────────────────────────────────────────────
 const fmtDate = (s) => {
@@ -125,8 +126,6 @@ export default function LifeCycleManagementPage({ goHome, currentUser, role }) {
         {[
           { id: "schedule",  label: "Schedule" },
           { id: "ccv",       label: "Continuous Cleaning Verification" },
-          { id: "cvpr-protocol", label: "Periodic Cleaning Verification Protocol" },
-          { id: "cvpr-report",   label: "Periodic Cleaning Verification Report" },
           { id: "deht",          label: "Dirty Equipment Hold Time Study" },
           { id: "ceht",          label: "Clean Equipment Hold Time Study" },
         ].map(t => (
@@ -301,54 +300,9 @@ export default function LifeCycleManagementPage({ goHome, currentUser, role }) {
           </div>
         )}
 
-        {/* ── PERIODIC CLEANING VERIFICATION PROTOCOL TAB ── */}
-        {activeTab === "cvpr-protocol" && (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
-              Periodic Cleaning Verification Protocol
-            </h3>
-            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
-              maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
-              The protocol overview — approved protocols, status, and completion progress
-              by facility and product — is available in the <strong>Dashboard</strong>.
-            </p>
-          </div>
-        )}
-
-        {/* ── PERIODIC CLEANING VERIFICATION REPORT TAB ── */}
-        {activeTab === "cvpr-report" && (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
-            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
-              Periodic Cleaning Verification Report
-            </h3>
-            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
-              maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
-              The verification report log — completion entries, dates, and recorded-by — is
-              available in the <strong>Dashboard</strong>.
-            </p>
-          </div>
-        )}
-
         {/* ── DIRTY EQUIPMENT HOLD TIME STUDY TAB ── */}
         {activeTab === "deht" && (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⏱️</div>
-            <h3 style={{ margin: "0 0 8px", color: "#004f9f", fontSize: 18 }}>
-              Dirty Equipment Hold Time Study
-            </h3>
-            <p style={{ margin: "0 0 4px 0", fontSize: 13, color: "#94a3b8",
-              maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
-              This section will capture hold time studies for dirty equipment — recording
-              the maximum allowable time between end of production and start of cleaning.
-            </p>
-            <div style={{ marginTop: 24, display: "inline-block", padding: "8px 20px",
-              background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8,
-              fontSize: 12, color: "#c2410c", fontWeight: 600 }}>
-              Coming Soon — Under Development
-            </div>
-          </div>
+          <DEHTPage noHeader currentUser={currentUser} role={role} goHome={goHome} />
         )}
 
         {/* ── CLEAN EQUIPMENT HOLD TIME STUDY TAB ── */}
