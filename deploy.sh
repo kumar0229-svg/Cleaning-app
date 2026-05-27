@@ -5,18 +5,24 @@ APP_DIR="/home/ubuntu/cleaning-app"
 cd "$APP_DIR"
 
 echo "==> Pulling latest code..."
-git pull origin main
+# Preserve .env — git pull must not overwrite it
+git fetch origin main
+git reset --hard origin/main
+# Restore .env if git reset removed it
+if [ ! -f backend/.env ]; then
+  echo "WARNING: .env missing after pull — backend may fail to start"
+fi
 
 echo "==> Installing backend dependencies..."
 cd backend
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -q
 deactivate
 cd ..
 
 echo "==> Building frontend..."
 cd frontend
-npm install --legacy-peer-deps
+npm install --legacy-peer-deps --silent
 npm run build
 cd ..
 
