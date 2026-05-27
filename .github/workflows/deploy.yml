@@ -13,7 +13,7 @@ jobs:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
-          echo "$SSH_KEY" > /tmp/deploy_key.pem
+          printf '%s\n' "$SSH_KEY" > /tmp/deploy_key.pem
           chmod 600 /tmp/deploy_key.pem
           ssh -i /tmp/deploy_key.pem \
             -o StrictHostKeyChecking=no \
