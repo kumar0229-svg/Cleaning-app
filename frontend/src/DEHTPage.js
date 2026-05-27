@@ -53,6 +53,38 @@ function calcHoldTime(usageEnd, cleaningStart) {
   return parseFloat(diff.toFixed(2));
 }
 
+function fmtLimit(capped, raw) {
+  if (capped == null) return "—";
+  if (raw != null && raw > 10) return `10 (${raw})`;
+  return String(capped);
+}
+
+function passFailBadge(val, loq) {
+  if (!val || !loq) return null;
+  const pass = val >= loq;
+  return (
+    <span style={{ fontSize: "10px", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+      background: pass ? "#d4edda" : "#f8d7da", color: pass ? "#155724" : "#721c24" }}>
+      {pass ? "PASS" : "FAIL"}
+    </span>
+  );
+}
+
+function compareResultToLimit(result, limit) {
+  if (!result || !limit) return null;
+  const r = parseFloat(result), l = parseFloat(limit);
+  if (isNaN(r) || isNaN(l)) return null;
+  return r <= l ? "PASS" : "FAIL";
+}
+
+const FORMULA_TEXT = {
+  pde:   "MACO(PDE)  = [PDE_source (mg) × Min_Yield_next (kg) × 1,000,000] / Max_Daily_Dose_next (mg)",
+  dose:  "MACO(Dose) = [Min_Dose_source (mg) × Min_Yield_next (kg) × 1,000,000] / [Max_Daily_Dose_next (mg) × 1000]",
+  ppm:   "MACO(10ppm) = [Min_Yield_next (kg) × 1,000,000 × 10] / 1,000,000",
+  rinse: "Rinse (ppm) = [MACO (mg) × Rinse_Area (in²)] / [Shared_Surface_Area (in²) × Rinse_Sample_Vol (L)]",
+  swab:  "Swab Limit (ppm)  = (MACO × Swab_area_in² × 1000) / (Chain_area_in² × 10 mL)",
+};
+
 export default function DEHTPage({ goHome, currentUser, role }) {
 
   // ── Core state ──────────────────────────────────────────────────────
@@ -61,10 +93,13 @@ export default function DEHTPage({ goHome, currentUser, role }) {
   const [products, setProducts]         = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("");
   const [selectedProduct, setSelectedProduct]   = useState("");
-  const [dehtHours, setDehtHours]       = useState(null);
-  const [dehtMeta, setDehtMeta]         = useState(null);
-  const [protocolData, setProtocolData] = useState(null); // { equipmentList, productName, facilityName, productId }
-  const [loading, setLoading]           = useState(false);
+  const [dehtHours, setDehtHours]             = useState(null);
+  const [dehtMeta, setDehtMeta]               = useState(null);
+  const [result, setResult]                   = useState(null);
+  const [sourceProduct, setSourceProduct]     = useState(null);
+  const [policy, setPolicy]                   = useState(null);
+  const [protocolSamplingPlan, setProtocolSamplingPlan] = useState([]);
+  const [loading, setLoading]                 = useState(false);
   const printRef = useRef(null);
 
   // ── Archive state ───────────────────────────────────────────────────
@@ -122,16 +157,19 @@ export default function DEHTPage({ goHome, currentUser, role }) {
   const [deletingReport, setDeletingReport]       = useState(false);
 
   // ── Derived display (live vs archived protocol view) ────────────────
-  const displayProtocol   = archiveDoc ?? protocolData;
-  const displayDocNumber  = archiveDoc
-    ? archiveDoc.docNumber
-    : (protocolData
-        ? `DEHT-PROTO-${String(protocolData.productId || "").padStart(4, "0")}-${new Date().getFullYear()}`
-        : "—");
+  const displayResult        = archiveDoc?.result        ?? result;
+  const displaySourceProduct = archiveDoc?.sourceProduct ?? sourceProduct;
+  const displaySamplingPlan  = archiveDoc?.samplingPlan  ?? protocolSamplingPlan;
+  const displayDocNumber     = archiveDoc?.docNumber ??
+    (result ? `DEHT-PROTO-${String(sourceProduct?.product_id || "").padStart(4, "0")}-${new Date().getFullYear()}` : "—");
+  const getFacilityName = (fid) =>
+    archiveDoc ? archiveDoc.facilityName
+               : (facilities.find(f => f.facility_id === fid)?.facility_name || fid);
 
-  // ── Boot: load facilities + DEHT hours ─────────────────────────────
+  // ── Boot: load facilities, policy, DEHT hours ──────────────────────
   useEffect(() => {
     api.get("/facility/all").then(r => setFacilities(r.data)).catch(console.log);
+    api.get("/policy").then(r => setPolicy(r.data)).catch(console.log);
     api.get("/lifecycle/deht-hours")
       .then(r => { setDehtHours(r.data.hours); setDehtMeta(r.data); })
       .catch(console.log);
@@ -167,29 +205,19 @@ export default function DEHTPage({ goHome, currentUser, role }) {
 
   // ── Protocol generation ─────────────────────────────────────────────
   const generateProtocol = async () => {
-    if (!selectedProduct) { alert("Select a product first."); return; }
-    setLoading(true); setProtocolData(null); setArchiveDoc(null);
+    if (!selectedProduct) { alert("Select a source product ❌"); return; }
+    setLoading(true); setResult(null); setArchiveDoc(null);
     try {
-      const product = products.find(p => String(p.product_id) === String(selectedProduct));
-      const facility = facilities.find(f => String(f.facility_id) === String(selectedFacility));
-
-      // Get equipment for this product
-      const [eqByFacRes, prodEqRes] = await Promise.all([
-        api.get(`/equipment/by_facility/${selectedFacility}`),
-        api.get(`/product/${selectedProduct}/equipment`),
+      const src = products.find(p => String(p.product_id) === String(selectedProduct));
+      setSourceProduct(src || null);
+      const [macoRes, sampRes] = await Promise.all([
+        api.post("/maco/matrix", { source_product_id: parseInt(selectedProduct) }),
+        api.get("/sampling/plan"),
       ]);
-      const prodEqIds = new Set((prodEqRes.data || []).map(id => String(id)));
-      const equipmentList = (eqByFacRes.data || []).filter(eq => prodEqIds.has(String(eq.equipment_id)));
-
-      setProtocolData({
-        productId: product.product_id,
-        productName: product.product_name,
-        facilityId: facility?.facility_id,
-        facilityName: facility?.facility_name || "",
-        equipmentList,
-      });
+      setResult(macoRes.data);
+      setProtocolSamplingPlan(sampRes.data);
     } catch (err) {
-      alert(apiError(err, "Error generating protocol."));
+      alert(apiError(err, "Error generating protocol ❌"));
     } finally { setLoading(false); }
   };
 
@@ -198,44 +226,34 @@ export default function DEHTPage({ goHome, currentUser, role }) {
     try {
       const res = await api.get(`/protocol/archive/${archiveId}`);
       const { snapshot, doc_number, version, generated_by, generated_at, status } = res.data;
-      setArchiveDoc({
-        ...snapshot,
-        docNumber: doc_number,
-        meta: { version, generated_by, generated_at, status, doc_number },
-      });
-      setProtocolData(null);
+      setArchiveDoc({ ...snapshot, docNumber: doc_number,
+        meta: { version, generated_by, generated_at, status, doc_number } });
+      setResult(null);
       setActiveTab("protocol");
-    } catch { alert("Error loading archived protocol."); }
+    } catch { alert("Error loading archived protocol ❌"); }
   };
 
   // ── Archive: save ───────────────────────────────────────────────────
   const saveToArchive = async () => {
-    if (!protocolData) return;
-    if (!savePassword.trim()) { alert("Enter your password."); return; }
+    if (!result || !sourceProduct) return;
+    if (!savePassword.trim()) { alert("Enter your password ❌"); return; }
     setSaveLoading(true);
     try {
-      const docNum = `DEHT-PROTO-${String(protocolData.productId).padStart(4, "0")}-${new Date().getFullYear()}`;
-      const snapshot = {
-        productId: protocolData.productId,
-        productName: protocolData.productName,
-        facilityId: protocolData.facilityId,
-        facilityName: protocolData.facilityName,
-        equipmentList: protocolData.equipmentList,
-        dehtHours,
-        docNumber: docNum,
-      };
+      const facilityName = facilities.find(f => f.facility_id === sourceProduct.facility_id)?.facility_name || "";
+      const docNum = `DEHT-PROTO-${String(sourceProduct.product_id).padStart(4, "0")}-${new Date().getFullYear()}`;
+      const snapshot = { result, sourceProduct, facilityName, docNumber: docNum, samplingPlan: protocolSamplingPlan, dehtHours };
       const res = await api.post("/protocol/archive", {
         snapshot,
         doc_number: docNum,
-        product_id: protocolData.productId,
-        product_name: protocolData.productName,
-        facility_name: protocolData.facilityName,
+        product_id: sourceProduct.product_id,
+        product_name: sourceProduct.product_name,
+        facility_name: facilityName,
         status: saveStatus,
         password: savePassword,
       });
       setShowSaveModal(false);
       setSavePassword("");
-      alert(`Saved: ${res.data.doc_number}  Version ${res.data.version}`);
+      alert(`Saved: ${res.data.doc_number}  Version ${res.data.version} ✅`);
       loadArchives();
     } catch (e) { alert(apiError(e, "Error saving protocol.")); }
     finally { setSaveLoading(false); }
@@ -277,34 +295,125 @@ export default function DEHTPage({ goHome, currentUser, role }) {
     setReportNotice("");
     setExistingReport(null);
     try {
-      const res = await api.get(`/protocol/archive/${protocol.archive_id}`);
-      const snap = res.data.snapshot;
-      const eqList = snap.equipmentList || [];
+      const [archiveRes, planRes, equipRes] = await Promise.all([
+        api.get(`/protocol/archive/${protocol.archive_id}`),
+        api.get("/sampling/plan"),
+        api.get("/equipment/all"),
+      ]);
+      const snap = archiveRes.data.snapshot;
+      const pairs = snap.result?.data || [];
       const hrs = snap.dehtHours ?? dehtHours;
       setReportDehtHours(hrs);
 
-      const buildEqResults = () =>
-        eqList.map(eq => ({
-          equipment_name: eq.equipment_name || eq.name || "",
-          equipment_id: eq.equipment_id,
-          usage_end_datetime: "",
-          cleaning_start_datetime: "",
-          hold_time_hours: null,
-          limit_hours: hrs,
-          sample_points: "",
-        }));
+      // Live sampling plan entries by category
+      const catEntries = {};
+      planRes.data.forEach(cat => { catEntries[cat.category_id] = cat.entries || []; });
+
+      // Fallback: resolve category_id from live equipment when snapshot predates field
+      const liveEqCatMap = {};
+      equipRes.data.forEach(e => { liveEqCatMap[e.equipment_name] = e.category_id; });
+
+      // Per-equipment governing limits (min across all pairs)
+      let govRinse = null, govSwab = null;
+      const eqLimitsMap = {};
+      pairs.forEach(pair => {
+        const pr = pair.rinse_limit_final ?? pair.rinse_limit_ppm;
+        const ps = pair.swab_limit_final  ?? pair.swab_limit_ppm;
+        if (pr != null && (govRinse === null || pr < govRinse)) govRinse = pr;
+        if (ps != null && (govSwab  === null || ps < govSwab))  govSwab  = ps;
+        (pair.shared_equipment || []).forEach(eq => {
+          if (!eqLimitsMap[eq.name]) eqLimitsMap[eq.name] = { rinse_final: null, swab_final: null };
+          const r = eq.rinse_final ?? null;
+          const s = eq.swab_final  ?? null;
+          if (r != null && (eqLimitsMap[eq.name].rinse_final === null || r < eqLimitsMap[eq.name].rinse_final))
+            eqLimitsMap[eq.name].rinse_final = r;
+          if (s != null && (eqLimitsMap[eq.name].swab_final  === null || s < eqLimitsMap[eq.name].swab_final))
+            eqLimitsMap[eq.name].swab_final  = s;
+        });
+      });
+
+      // Collect unique final-step equipment
+      const eqMap = {};
+      pairs.forEach(pair => {
+        (pair.shared_equipment || []).forEach(eq => {
+          if (!eqMap[eq.name]) {
+            const resolvedCatId = eq.category_id ?? liveEqCatMap[eq.name] ?? null;
+            eqMap[eq.name] = {
+              equipment_name: eq.name,
+              category_id: resolvedCatId,
+              category_name: eq.category_name ?? planRes.data.find(c => c.category_id === resolvedCatId)?.category_name ?? "—",
+              eq_type: "maco",
+            };
+          }
+        });
+      });
+
+      // Synthesis-step equipment (fixed 10 ppm)
+      const synthSteps = snap.result?.synthesis_steps || [];
+      const addSynthEq = (eq) => {
+        if (eqMap[eq.name]) return;
+        const resolvedCatId = eq.category_id ?? liveEqCatMap[eq.name] ?? null;
+        eqMap[eq.name] = {
+          equipment_name: eq.name,
+          category_id: resolvedCatId,
+          category_name: eq.category_name ?? planRes.data.find(c => c.category_id === resolvedCatId)?.category_name ?? "—",
+          eq_type: "synthesis",
+        };
+      };
+      if (synthSteps.length > 0) {
+        synthSteps.forEach(stepGrp => (stepGrp.equipment || []).forEach(addSynthEq));
+      } else {
+        pairs.forEach(pair =>
+          (pair.synthesis_step_equipment || []).forEach(stepGrp =>
+            (stepGrp.equipment || []).forEach(addSynthEq)
+          )
+        );
+      }
+
+      const equipmentResults = Object.values(eqMap).map(eq => ({
+        ...eq,
+        rinse_limit_ppm: eq.eq_type === "synthesis" ? 10.0
+          : (eqLimitsMap[eq.equipment_name]?.rinse_final ?? govRinse),
+        swab_limit_ppm: eq.eq_type === "synthesis" ? 10.0
+          : (eqLimitsMap[eq.equipment_name]?.swab_final ?? govSwab),
+        rinse_result_ppm: "",
+        rinse_lot_number: "",
+        swab_results: (catEntries[eq.category_id] || []).map(entry => ({
+          sample_number: entry.sample_number,
+          location_description: entry.location_description,
+          result_ppm: "",
+          lot_number: "",
+        })),
+        usage_end_datetime: "",
+        cleaning_start_datetime: "",
+        hold_time_hours: null,
+        limit_hours: hrs,
+      }));
 
       if (existingDraft?.status === "Draft" && existingDraft.results_data?.runs) {
         const draftRuns = existingDraft.results_data.runs;
         setRunResults(prev => prev.map((run, ri) => {
           const draftRun = draftRuns[ri];
-          if (!draftRun) return { ...run, equipment_results: buildEqResults() };
+          if (!draftRun) return { ...run, equipment_results: equipmentResults };
           return {
             ...draftRun,
-            equipment_results: buildEqResults().map((eq, ei) => {
+            equipment_results: equipmentResults.map((eq, ei) => {
               const draftEq = draftRun.equipment_results?.[ei];
-              if (!draftEq) return eq;
-              return { ...eq, ...draftEq, limit_hours: hrs };
+              if (!draftEq || draftEq.equipment_name !== eq.equipment_name) return eq;
+              return {
+                ...eq,
+                rinse_result_ppm: draftEq.rinse_result_ppm || "",
+                rinse_lot_number: draftEq.rinse_lot_number || "",
+                swab_results: (eq.swab_results || []).map((swab, si) => ({
+                  ...swab,
+                  result_ppm: draftEq.swab_results?.[si]?.result_ppm || "",
+                  lot_number: draftEq.swab_results?.[si]?.lot_number || "",
+                })),
+                usage_end_datetime: draftEq.usage_end_datetime || "",
+                cleaning_start_datetime: draftEq.cleaning_start_datetime || "",
+                hold_time_hours: draftEq.hold_time_hours ?? null,
+                limit_hours: hrs,
+              };
             }),
           };
         }));
@@ -313,9 +422,9 @@ export default function DEHTPage({ goHome, currentUser, role }) {
         setCompletionDate(existingDraft.results_data.completion_date || "");
       } else {
         setRunResults([
-          { run_number: 1, batch_number: "", equipment_results: buildEqResults() },
-          { run_number: 2, batch_number: "", equipment_results: buildEqResults() },
-          { run_number: 3, batch_number: "", equipment_results: buildEqResults() },
+          { run_number: 1, batch_number: "", equipment_results: equipmentResults },
+          { run_number: 2, batch_number: "", equipment_results: equipmentResults.map(eq => ({ ...eq })) },
+          { run_number: 3, batch_number: "", equipment_results: equipmentResults.map(eq => ({ ...eq })) },
         ]);
         setTrainingDetails("");
         setSopFollowed("");
@@ -343,16 +452,22 @@ export default function DEHTPage({ goHome, currentUser, role }) {
   };
 
   // ── Run result change handlers ───────────────────────────────────────
-  const handleRunChange = (runIdx, equipIdx, field, value) => {
+  const handleRunChange = (runIdx, equipIdx, field, value, swabIdx) => {
     setRunResults(prev => prev.map((run, ri) => {
       if (ri !== runIdx) return run;
       if (field === "batch_number") return { ...run, batch_number: value };
       const eqs = run.equipment_results.map((eq, ei) => {
         if (ei !== equipIdx) return eq;
+        if (field === "swab_result_ppm" || field === "swab_lot_number") {
+          const key = field === "swab_result_ppm" ? "result_ppm" : "lot_number";
+          const swab_results = (eq.swab_results || []).map((s, si) =>
+            si === swabIdx ? { ...s, [key]: value } : s
+          );
+          return { ...eq, swab_results };
+        }
         const updated = { ...eq, [field]: value };
-        // Auto-calculate hold time when either datetime changes
         if (field === "usage_end_datetime" || field === "cleaning_start_datetime") {
-          const uEnd  = field === "usage_end_datetime"    ? value : eq.usage_end_datetime;
+          const uEnd   = field === "usage_end_datetime"    ? value : eq.usage_end_datetime;
           const cStart = field === "cleaning_start_datetime" ? value : eq.cleaning_start_datetime;
           updated.hold_time_hours = calcHoldTime(uEnd, cStart);
         }
@@ -399,6 +514,21 @@ export default function DEHTPage({ goHome, currentUser, role }) {
         }
         if (!eq.cleaning_start_datetime) {
           alert(`Cleaning Start Date/Time required for Run ${i + 1}, ${eq.equipment_name}.`); return false;
+        }
+        if (!eq.rinse_result_ppm) {
+          alert(`Rinse result required for Run ${i + 1}, ${eq.equipment_name}.`); return false;
+        }
+        if (isNaN(parseFloat(eq.rinse_result_ppm))) {
+          alert(`Rinse result must be numeric (Run ${i + 1}, ${eq.equipment_name}).`); return false;
+        }
+        for (let k = 0; k < (eq.swab_results || []).length; k++) {
+          const swab = eq.swab_results[k];
+          if (!swab.result_ppm) {
+            alert(`Swab result required for Run ${i + 1}, ${eq.equipment_name} — ${swab.sample_number}.`); return false;
+          }
+          if (isNaN(parseFloat(swab.result_ppm))) {
+            alert(`Swab result must be numeric (Run ${i + 1}, ${eq.equipment_name} — ${swab.sample_number}).`); return false;
+          }
         }
       }
     }
@@ -633,23 +763,43 @@ ${reportPrintRef.current.innerHTML}
 
   // ── Protocol document renderer ──────────────────────────────────────
   const renderProtocolDoc = () => {
-    const d = displayProtocol;
-    if (!d) return null;
+    const r  = displayResult;
+    const sp = displaySourceProduct;
+    if (!r) return null;
+    if (!r.source) return (
+      <div style={{ padding: "40px", textAlign: "center", color: "#888" }}>
+        Re-generate this protocol to view the updated DEHT protocol document.
+      </div>
+    );
+
     const docNum = displayDocNumber;
-    const hrs = d.dehtHours ?? dehtHours ?? "—";
-    const eqList = d.equipmentList || [];
-    const productName = d.productName || "—";
-    const facilityName = d.facilityName || "—";
+    const hrs    = (archiveDoc?.dehtHours ?? dehtHours) ?? "—";
+
+    const catMap = new Map();
+    r.data?.forEach(pair => pair.shared_equipment?.forEach(eq => {
+      if (eq.category_id && !catMap.has(eq.category_id))
+        catMap.set(eq.category_id, eq.category_name);
+    }));
+    const relevantPlan = displaySamplingPlan
+      .filter(c => catMap.size === 0 || catMap.has(c.category_id))
+      .filter(c => c.entries.length > 0);
+
+    // Collect unique final-product equipment for the DEHT procedure table
+    const finalEqMap = {};
+    (r.data || []).forEach(pair =>
+      (pair.shared_equipment || []).forEach(eq => {
+        if (!finalEqMap[eq.name]) finalEqMap[eq.name] = eq;
+      })
+    );
+    const allEquipment = Object.values(finalEqMap);
 
     return (
       <div ref={printRef} style={{ background: "white", boxShadow: "0 4px 28px rgba(0,0,0,0.32)", minHeight: "1123px" }}>
 
         {/* Archive banner */}
         {archiveDoc && (
-          <div className="archive-banner" style={{
-            background: "#fff3cd", borderBottom: "2px solid #ffc107",
-            padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
+          <div className="archive-banner" style={{ background: "#fff3cd", borderBottom: "2px solid #ffc107",
+            padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontSize: "13px", color: "#856404" }}>
               <strong>Archived — {archiveDoc.docNumber} Version {archiveDoc.meta.version}</strong>
               <span style={{ marginLeft: "14px", fontWeight: "normal" }}>
@@ -658,7 +808,7 @@ ${reportPrintRef.current.innerHTML}
             </div>
             <button onClick={() => setArchiveDoc(null)}
               style={{ padding: "4px 12px", background: "#856404", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>
-              Close
+              ✕ Close
             </button>
           </div>
         )}
@@ -670,7 +820,7 @@ ${reportPrintRef.current.innerHTML}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <h3 style={S.docTitle}>Dirty Equipment Hold Time (DEHT) Study Protocol</h3>
-                <p style={S.docSub}>Cleaning Validation — DEHT Determination</p>
+                <p style={S.docSub}>Cleaning Validation with DEHT Determination — MACO Methodology</p>
               </div>
               <table style={S.metaTable}><tbody>
                 <tr><td style={S.metaKey}>Document No.</td><td style={S.metaVal}>{docNum}</td></tr>
@@ -682,59 +832,464 @@ ${reportPrintRef.current.innerHTML}
           </div>
         </div>
 
-        {/* § 1 Objective */}
+        {/* § 1 Scope & Objective */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>1. Objective</p>
+          <p style={S.sectionTitle}>1. Scope &amp; Objective</p>
           <p style={S.para}>
-            To determine and document that dirty equipment used in the manufacture of <strong>{productName}</strong> can
-            be held for up to <strong>{hrs} hours</strong> without cleaning, without adversely affecting product quality
-            or cleanability. The maximum allowable dirty hold time is <strong>{hrs} hours</strong> as defined in the
-            Calculation Policy.
+            This protocol defines the Maximum Allowable Carryover (MACO) cleaning limits for{" "}
+            <strong>{r.source}</strong> as a source (previous) product manufactured at{" "}
+            <strong>{getFacilityName(sp?.facility_id)}</strong>, and establishes the Dirty Equipment
+            Hold Time (DEHT) study procedure to determine the maximum allowable time between end of
+            production and start of cleaning.
+          </p>
+          <p style={S.para}>
+            MACO limits are derived using the <strong>{r.policy_label || r.policy}</strong> methodology
+            in accordance with ICH Q7, EMA/CHMP/CVMP/SWP/169430/2012, and applicable site SOPs.
+            The maximum allowable dirty hold time is <strong>{hrs} hours</strong> as defined in the
+            Cleaning Validation Calculation Policy.
           </p>
         </div>
 
-        {/* § 2 Scope */}
+        {/* § 2 Source Product Information */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>2. Scope</p>
-          <p style={{ ...S.para, marginBottom: "10px" }}>
-            This protocol applies to the following equipment used in the manufacture of <strong>{productName}</strong>
-            {" "}at <strong>{facilityName}</strong>:
-          </p>
-          {eqList.length === 0 ? (
-            <p style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>
-              No equipment linked to this product.
-            </p>
+          <p style={S.sectionTitle}>2. Source Product Information</p>
+          <table style={S.dataTable}><tbody>
+            <tr><td style={S.tdKey}>Product Name</td><td style={S.tdVal}><strong>{r.source}</strong></td>
+                <td style={S.tdKey}>Facility</td><td style={S.tdVal}>{getFacilityName(sp?.facility_id)}</td></tr>
+            <tr><td style={S.tdKey}>PDE / ADE (mg/day)</td><td style={S.tdVal}>{sp?.pde_mg_day ?? "—"}</td>
+                <td style={S.tdKey}>Min Therapeutic Dose (mg)</td><td style={S.tdVal}>{sp?.min_therapeutic_dose_mg ?? "—"}</td></tr>
+            <tr><td style={S.tdKey}>Max Daily Dose (mg/day)</td><td style={S.tdVal}>{sp?.max_daily_dose_mg ?? "—"}</td>
+                <td style={S.tdKey}>Min Batch Size (kg)</td><td style={S.tdVal}>{sp?.min_yield_kg ?? "—"}</td></tr>
+            <tr><td style={S.tdKey}>Max Batch Size (kg)</td><td style={S.tdVal}>{sp?.max_batch_size_kg ?? "—"}</td>
+                <td style={S.tdKey}>Analytical Method</td><td style={S.tdVal}>{r.analytical_method || "—"}</td></tr>
+            <tr><td style={S.tdKey}>LOD (ppm)</td><td style={S.tdVal}>{r.lod_ppm ?? "—"}</td>
+                <td style={S.tdKey}>LOQ (ppm)</td><td style={S.tdVal}>{r.loq_ppm ?? "—"}</td></tr>
+          </tbody></table>
+        </div>
+
+        {/* § 3 Calculation Methodology */}
+        <div style={S.section} className="doc-section">
+          <p style={S.sectionTitle}>3. Calculation Methodology</p>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+            <span style={S.policyBadge}>{r.policy_label || r.policy}</span>
+            {r.scenario === "fixed_10ppm"
+              ? <span style={{ background: "#fff3cd", color: "#856404", border: "1px solid #ffc107", borderRadius: "4px", padding: "3px 10px", fontWeight: "bold", fontSize: "12px" }}>
+                  Fixed 10 ppm — {r.source_category} Source
+                </span>
+              : <span style={{ background: "#d4edda", color: "#155724", border: "1px solid #c3e6cb", borderRadius: "4px", padding: "3px 10px", fontWeight: "bold", fontSize: "12px" }}>
+                  MACO 3-Method Calculation — API Source
+                </span>
+            }
+          </div>
+          {r.scenario === "fixed_10ppm" ? (
+            <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "6px", padding: "12px 14px", marginBottom: "10px" }}>
+              <p style={{ ...S.para, marginBottom: 0 }}>
+                <strong>Fixed 10 ppm Criterion Applied.</strong> The source product <strong>{r.source}</strong> is
+                classified as <strong>{r.source_category}</strong>. A fixed limit of <strong>10 ppm</strong> applies
+                to all rinse and swab acceptance criteria.
+              </p>
+            </div>
           ) : (
-            <table style={S.dataTable}>
-              <thead>
-                <tr style={{ background: "#e8f0fb" }}>
-                  <th style={S.th}>#</th>
-                  <th style={S.th}>Equipment Name</th>
-                  <th style={S.th}>Equipment ID / Tag</th>
-                  <th style={S.th}>Category</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eqList.map((eq, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "white" : "#f8fafc" }}>
-                    <td style={{ ...S.td, textAlign: "center", width: "40px" }}>{i + 1}</td>
-                    <td style={{ ...S.td, fontWeight: "600" }}>{eq.equipment_name || eq.name || "—"}</td>
-                    <td style={S.td}>{eq.equipment_tag || eq.equipment_id || "—"}</td>
-                    <td style={S.td}>{eq.category_name || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              <p style={S.para}>The governing MACO uses the <strong>{r.policy_label || r.policy}</strong> approach.
+                All final limits are capped at 10 ppm.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {(["all_min","pde_only","pde_dose_min","pde_10ppm_min"].includes(r.policy)) && (
+                  <div style={S.formulaBox} className="formula-box">
+                    <span style={S.formulaLabel}>MACO — PDE / ADE Based</span>
+                    <code style={S.formulaCode}>{FORMULA_TEXT.pde}</code>
+                    <span style={S.formulaNote}>PDE = Permitted Daily Exposure · BS = Min batch size of target · TDD = Max daily dose of target</span>
+                  </div>
+                )}
+                {(["all_min","dose_only","pde_dose_min"].includes(r.policy)) && (
+                  <div style={S.formulaBox} className="formula-box">
+                    <span style={S.formulaLabel}>MACO — Dose Based (1/1000th)</span>
+                    <code style={S.formulaCode}>{FORMULA_TEXT.dose}</code>
+                    <span style={S.formulaNote}>TD = Min therapeutic dose · Safety factor = 1000 · BS = Min batch size · TDD = Max daily dose</span>
+                  </div>
+                )}
+                {(["all_min","10ppm_only","pde_10ppm_min"].includes(r.policy)) && (
+                  <div style={S.formulaBox} className="formula-box">
+                    <span style={S.formulaLabel}>MACO — 10 ppm Criterion</span>
+                    <code style={S.formulaCode}>{FORMULA_TEXT.ppm}</code>
+                    <span style={S.formulaNote}>10 mg/kg × minimum batch size of target product</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
+                <div style={S.formulaBox} className="formula-box">
+                  <span style={S.formulaLabel}>Rinse Limit</span>
+                  <code style={S.formulaCode}>{FORMULA_TEXT.rinse}</code>
+                  <span style={S.formulaNote}>Rinse_Area = rinse sampling area (in²) · Shared_Surface_Area = total shared surface area (in²) · Rinse_Sample_Vol = rinse volume (L)</span>
+                </div>
+                <div style={S.formulaBox} className="formula-box">
+                  <span style={S.formulaLabel}>Swab Limit</span>
+                  <code style={S.formulaCode}>{FORMULA_TEXT.swab}</code>
+                  <span style={S.formulaNote}>Swab_area = swab sampling area (in²) · Chain_area = total equipment surface area (in²) · 10 mL = fixed swab extraction volume</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
 
-        {/* § 3 Procedure */}
+        {/* § 4 Cleaning Limit Calculations */}
+        <div style={S.section} className="calc-section">
+          <p style={S.sectionTitle}>4. Cleaning Limit Calculations</p>
+          {r.data.length === 0
+            ? <p style={{ color: "#888", fontStyle: "italic" }}>No target products found sharing equipment in this facility.</p>
+            : r.data.map((row, idx) => (
+            <div key={idx} style={S.pairBlock} className="pair-block">
+              <p style={S.pairTitle}>4.{idx + 1} &nbsp; {r.source} → {row.target_product}</p>
+              <p style={S.subLabel}>Shared Equipment</p>
+              {row.shared_equipment.length === 0
+                ? <p style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>No shared equipment.</p>
+                : <>
+                  <table style={S.dataTable}>
+                    <thead><tr style={{ background: "#e8f0fb" }}>
+                      <th style={S.th}>Equipment</th><th style={S.th}>Category</th>
+                      <th style={S.th}>Surface Area (in²)</th><th style={S.th}>Rinse Vol (L)</th>
+                      <th style={S.th}>Swab Area (in²)</th><th style={S.th}>Rinse Area (in²)</th>
+                    </tr></thead>
+                    <tbody>
+                      {row.shared_equipment.map((eq, i) => (
+                        <tr key={i}>
+                          <td style={S.td}>{eq.name}</td><td style={S.td}>{eq.category_name || "—"}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{eq.surface_area_in2 ?? "—"}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{eq.rinse_volume_L ?? "—"}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{eq.swab_area_sqin ?? "—"}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{eq.rinse_sample_area_sqin ?? "—"}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "#f0f4ff", fontWeight: "600" }}>
+                        <td style={S.td} colSpan={2}>Total</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{row.total_area_in2?.toFixed(2) ?? "—"} in²</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{row.total_rinse_vol_L?.toFixed(2) ?? "—"} L</td>
+                        <td style={S.td} colSpan={2}/>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {row.scenario === "fixed_10ppm" ? (
+                    <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "6px", padding: "10px 14px", margin: "12px 0 8px" }}>
+                      <p style={{ margin: 0, fontSize: "12px", color: "#856404" }}>
+                        <strong>Fixed 10 ppm criterion applied</strong> — MACO not applicable for {r.source_category} source.
+                        Rinse and swab limits are set to <strong>10.0 ppm</strong>.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ ...S.subLabel, marginTop: "12px" }}>MACO Derivation</p>
+                      <table style={S.dataTable}>
+                        <thead><tr style={{ background: "#e8f0fb" }}>
+                          <th style={S.th}>Method</th><th style={S.th}>Formula</th>
+                          <th style={S.th}>Result (mg)</th><th style={S.th}>Policy Active</th>
+                        </tr></thead>
+                        <tbody>
+                          {[
+                            { label: "PDE Based", formula: FORMULA_TEXT.pde, val: row.maco_pde,
+                              active: ["all_min","pde_only","pde_dose_min","pde_10ppm_min"].includes(r.policy) },
+                            { label: "Dose Based (1/1000th)", formula: FORMULA_TEXT.dose, val: row.maco_dose,
+                              active: ["all_min","dose_only","pde_dose_min"].includes(r.policy) },
+                            { label: "10 ppm Criterion", formula: FORMULA_TEXT.ppm, val: row.maco_10ppm,
+                              active: ["all_min","10ppm_only","pde_10ppm_min"].includes(r.policy) },
+                          ].map(({ label, formula, val, active }) => (
+                            <tr key={label} style={{ background: val && val === row.governing_maco_pair ? "#e8f5e9" : "white" }}>
+                              <td style={S.td}>{label}</td>
+                              <td style={{ ...S.td, fontFamily: "monospace", fontSize: "11px" }}>{formula}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{val ?? <em style={{ color: "#aaa" }}>N/A</em>}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>
+                                {active ? <span style={S.activeMark}>✓</span> : <span style={S.inactiveMark}>—</span>}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr style={{ background: "#d4edda", fontWeight: "bold" }}>
+                            <td style={S.td} colSpan={2}>Governing MACO ({r.policy_label || r.policy})</td>
+                            <td style={{ ...S.td, textAlign: "center", color: "#155724" }}>
+                              {row.governing_maco_pair != null ? `${row.governing_maco_pair} mg` : "—"}
+                            </td>
+                            <td style={S.td}/>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <p style={{ ...S.subLabel, marginTop: "10px" }}>Per-Equipment Limits (ppm) — Final Product Step</p>
+                      {row.shared_equipment.length > 0 ? (
+                        <table style={S.dataTable}>
+                          <thead>
+                            <tr style={{ background: "#e8f0fb" }}>
+                              <th style={S.th} rowSpan={2}>Equipment</th>
+                              <th style={{ ...S.th, textAlign: "center" }} colSpan={4}>Rinse Limit (ppm)</th>
+                              <th style={{ ...S.th, textAlign: "center" }} colSpan={4}>Swab Limit (ppm)</th>
+                            </tr>
+                            <tr style={{ background: "#eef2fb" }}>
+                              <th style={S.th}>PDE</th><th style={S.th}>Dose</th><th style={S.th}>10ppm</th>
+                              <th style={{ ...S.th, background: "#d0dff7" }}>Final</th>
+                              <th style={S.th}>PDE</th><th style={S.th}>Dose</th><th style={S.th}>10ppm</th>
+                              <th style={{ ...S.th, background: "#d0dff7" }}>Final</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {row.shared_equipment.map((eq, i) => {
+                              const isGovRinse = eq.rinse_final != null && eq.rinse_final === row.rinse_limit_final;
+                              const isGovSwab  = eq.swab_final  != null && eq.swab_final  === row.swab_limit_final;
+                              return (
+                                <tr key={i} style={{ background: (isGovRinse || isGovSwab) ? "#f0fdf4" : "white" }}>
+                                  <td style={S.td}>
+                                    {eq.name}
+                                    {(isGovRinse || isGovSwab) && <span style={{ marginLeft: "6px", fontSize: "10px", color: "#16a34a", fontWeight: "700" }}>★ Gov</span>}
+                                  </td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.rinse_pde, eq.rinse_pde_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.rinse_dose, eq.rinse_dose_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.rinse_10ppm, eq.rinse_10ppm_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center", fontWeight: "600", background: isGovRinse ? "#d4edda" : "#e8f0fe" }}>{eq.rinse_final ?? "—"}</td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.swab_pde, eq.swab_pde_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.swab_dose, eq.swab_dose_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(eq.swab_10ppm, eq.swab_10ppm_raw)}</td>
+                                  <td style={{ ...S.td, textAlign: "center", fontWeight: "600", background: isGovSwab ? "#d4edda" : "#e8f0fe" }}>{eq.swab_final ?? "—"}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr style={{ background: "#d4edda", fontWeight: "700" }}>
+                              <td style={S.td}>Governing (min across equipment)</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_pde, row.rinse_limit_pde_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_dose, row.rinse_limit_dose_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_10ppm, row.rinse_limit_10ppm_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center", background: "#b7e1cd" }}>{row.rinse_limit_final ?? "—"}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_pde, row.swab_limit_pde_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_dose, row.swab_limit_dose_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_10ppm, row.swab_limit_10ppm_raw)}</td>
+                              <td style={{ ...S.td, textAlign: "center", background: "#b7e1cd" }}>{row.swab_limit_final ?? "—"}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>No final-product-step equipment shared.</p>
+                      )}
+
+                      {(row.synthesis_step_equipment || []).length > 0 && (
+                        <>
+                          <p style={{ ...S.subLabel, marginTop: "12px" }}>Synthesis Intermediate Steps — Fixed 10 ppm</p>
+                          {row.synthesis_step_equipment.map((stepGrp, si) => (
+                            <div key={si} style={{ marginBottom: "10px", border: "1px solid #fed7aa", borderRadius: "6px", overflow: "hidden" }}>
+                              <div style={{ background: "#fff7ed", padding: "7px 12px", borderBottom: "1px solid #fed7aa",
+                                display: "flex", alignItems: "center", gap: "12px" }}>
+                                <span style={{ fontWeight: "700", fontSize: "12px", color: "#9a3412" }}>Step {stepGrp.step_number}</span>
+                                <span style={{ fontSize: "12px", color: "#7c3aed" }}>Test Compound: <strong>{stepGrp.test_compound || "—"}</strong></span>
+                                <span style={{ marginLeft: "auto", fontSize: "11px", color: "#9a3412", fontWeight: "600" }}>Limit: 10 ppm (Rinse &amp; Swab)</span>
+                              </div>
+                              <table style={{ ...S.dataTable, margin: 0 }}>
+                                <thead><tr style={{ background: "#fff7ed" }}>
+                                  <th style={S.th}>Equipment</th><th style={S.th}>Category</th>
+                                  <th style={{ ...S.th, textAlign: "center" }}>Surface Area (in²)</th>
+                                  <th style={{ ...S.th, textAlign: "center" }}>Rinse Vol (L)</th>
+                                  <th style={{ ...S.th, textAlign: "center", background: "#fed7aa" }}>Rinse Limit (ppm)</th>
+                                  <th style={{ ...S.th, textAlign: "center", background: "#fed7aa" }}>Swab Limit (ppm)</th>
+                                </tr></thead>
+                                <tbody>
+                                  {(stepGrp.equipment || []).map((eq, ei) => (
+                                    <tr key={ei} style={{ background: ei % 2 === 0 ? "white" : "#fffbf5" }}>
+                                      <td style={S.td}>{eq.name}</td><td style={S.td}>{eq.category_name || "—"}</td>
+                                      <td style={{ ...S.td, textAlign: "center" }}>{eq.surface_area_in2 ?? "—"}</td>
+                                      <td style={{ ...S.td, textAlign: "center" }}>{eq.rinse_volume_L ?? "—"}</td>
+                                      <td style={{ ...S.td, textAlign: "center", fontWeight: "600", color: "#9a3412" }}>10.0</td>
+                                      <td style={{ ...S.td, textAlign: "center", fontWeight: "600", color: "#9a3412" }}>10.0</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  <p style={{ ...S.subLabel, marginTop: "12px" }}>Acceptance Criteria (Governing)</p>
+                  <table style={S.dataTable}>
+                    <thead><tr style={{ background: "#e8f0fb" }}>
+                      <th style={S.th}>Criterion</th>
+                      {row.scenario !== "fixed_10ppm" && <><th style={S.th}>PDE (ppm)</th><th style={S.th}>Dose (ppm)</th><th style={S.th}>10 ppm (ppm)</th></>}
+                      <th style={{ ...S.th, background: "#d0dff7" }}>Final Limit (ppm)</th>
+                      <th style={S.th}>LOQ (ppm)</th><th style={S.th}>Status</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr>
+                        <td style={S.td}>Rinse Limit</td>
+                        {row.scenario !== "fixed_10ppm" && <>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_pde, row.rinse_limit_pde_raw)}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_dose, row.rinse_limit_dose_raw)}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.rinse_limit_10ppm, row.rinse_limit_10ppm_raw)}</td>
+                        </>}
+                        <td style={{ ...S.td, textAlign: "center", fontWeight: "bold", background: "#e8f0fe" }}>{row.rinse_limit_final ?? "—"}</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{row.loq_ppm ?? r.loq_ppm ?? "—"}</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{passFailBadge(row.rinse_limit_final, row.loq_ppm || r.loq_ppm)}</td>
+                      </tr>
+                      <tr>
+                        <td style={S.td}>Swab Limit</td>
+                        {row.scenario !== "fixed_10ppm" && <>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_pde, row.swab_limit_pde_raw)}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_dose, row.swab_limit_dose_raw)}</td>
+                          <td style={{ ...S.td, textAlign: "center" }}>{fmtLimit(row.swab_limit_10ppm, row.swab_limit_10ppm_raw)}</td>
+                        </>}
+                        <td style={{ ...S.td, textAlign: "center", fontWeight: "bold", background: "#e8f0fe" }}>{row.swab_limit_final ?? "—"}</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{row.loq_ppm ?? r.loq_ppm ?? "—"}</td>
+                        <td style={{ ...S.td, textAlign: "center" }}>{passFailBadge(row.swab_limit_final, row.loq_ppm || r.loq_ppm)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>}
+            </div>
+          ))}
+        </div>
+
+        {/* § 5 Governing Cleaning Limit */}
+        {(() => {
+          const eqLimitsMap = {};
+          (r.data || []).forEach(row => {
+            (row.shared_equipment || []).forEach(eq => {
+              if (!eqLimitsMap[eq.name])
+                eqLimitsMap[eq.name] = { name: eq.name, category_name: eq.category_name || "—", rinse_final: null, swab_final: null };
+              const eqRinse = eq.rinse_final ?? row.rinse_limit_final ?? null;
+              const eqSwab  = eq.swab_final  ?? row.swab_limit_final  ?? null;
+              if (eqRinse != null && (eqLimitsMap[eq.name].rinse_final === null || eqRinse < eqLimitsMap[eq.name].rinse_final))
+                eqLimitsMap[eq.name].rinse_final = eqRinse;
+              if (eqSwab != null && (eqLimitsMap[eq.name].swab_final === null || eqSwab < eqLimitsMap[eq.name].swab_final))
+                eqLimitsMap[eq.name].swab_final = eqSwab;
+            });
+          });
+          const finalProductLimits = Object.values(eqLimitsMap);
+          const synthSteps = r.synthesis_steps || [];
+          return (
+            <div style={S.section} className="doc-section">
+              <p style={S.sectionTitle}>5. Governing Cleaning Limit</p>
+              {r.scenario === "fixed_10ppm" ? (
+                <p style={S.para}>Fixed 10 ppm applied for <strong>{r.source_category}</strong> source. All rinse and swab limits = <strong>10.0 ppm</strong>.</p>
+              ) : (
+                <>
+                  <div style={S.governingBox} className="governing-box">
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "16px" }}>
+                      <div><p style={S.govLabel}>Governing MACO</p><p style={S.govValue}>{r.governing_maco ?? "—"} mg</p></div>
+                      <div><p style={S.govLabel}>Calculation Policy</p><p style={{ ...S.govValue, fontSize: "13px" }}>{r.policy_label || r.policy}</p></div>
+                      <div><p style={S.govLabel}>Analytical Method</p><p style={{ ...S.govValue, fontSize: "13px" }}>{r.analytical_method || "—"}</p></div>
+                    </div>
+                  </div>
+                  <p style={S.para}>The governing MACO of <strong>{r.governing_maco ?? "—"} mg</strong> represents the most restrictive cleaning limit across all product pairs (LOQ: {r.loq_ppm} ppm, LOD: {r.lod_ppm} ppm).</p>
+                </>
+              )}
+              {finalProductLimits.length > 0 && (
+                <>
+                  <p style={{ ...S.subLabel, marginTop: "14px" }}>Final Product Step — Finalized Limits per Equipment</p>
+                  <table style={S.dataTable}>
+                    <thead><tr style={{ background: "#e8f0fb" }}>
+                      <th style={S.th}>Equipment</th><th style={S.th}>Category</th>
+                      <th style={{ ...S.th, textAlign: "center" }}>Rinse Limit (ppm)</th>
+                      <th style={{ ...S.th, textAlign: "center" }}>Swab Limit (ppm)</th>
+                    </tr></thead>
+                    <tbody>
+                      {finalProductLimits.map((eq, i) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? "white" : "#f8fafc" }}>
+                          <td style={S.td}>{eq.name}</td><td style={S.td}>{eq.category_name}</td>
+                          <td style={{ ...S.td, textAlign: "center", fontWeight: "600", color: "#1d4ed8" }}>{eq.rinse_final ?? "—"}</td>
+                          <td style={{ ...S.td, textAlign: "center", fontWeight: "600", color: "#1d4ed8" }}>{eq.swab_final ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+              {synthSteps.length > 0 && (
+                <>
+                  <p style={{ ...S.subLabel, marginTop: "16px" }}>Synthesis Intermediate Steps — Fixed 10 ppm Cleaning Limits</p>
+                  {synthSteps.map((stepGrp, si) => (
+                    <div key={si} style={{ marginBottom: "12px", border: "1px solid #fed7aa", borderRadius: "6px", overflow: "hidden" }}>
+                      <div style={{ background: "#fff7ed", padding: "8px 14px", borderBottom: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: "14px" }}>
+                        <span style={{ fontWeight: "700", fontSize: "12px", color: "#9a3412" }}>Step {stepGrp.step_number}</span>
+                        <span style={{ fontSize: "12px", color: "#7c3aed" }}>Test Compound: <strong>{stepGrp.test_compound || "—"}</strong></span>
+                        <span style={{ marginLeft: "auto", fontSize: "11px", fontWeight: "700", background: "#fed7aa", color: "#9a3412", padding: "2px 10px", borderRadius: "4px" }}>Limit: 10.0 ppm</span>
+                      </div>
+                      <table style={{ ...S.dataTable, margin: 0 }}>
+                        <thead><tr style={{ background: "#fff7ed" }}>
+                          <th style={S.th}>Equipment</th><th style={S.th}>Category</th>
+                          <th style={{ ...S.th, textAlign: "center" }}>Surface Area (in²)</th>
+                          <th style={{ ...S.th, textAlign: "center" }}>Rinse Vol (L)</th>
+                          <th style={{ ...S.th, textAlign: "center", background: "#fed7aa" }}>Rinse Limit (ppm)</th>
+                          <th style={{ ...S.th, textAlign: "center", background: "#fed7aa" }}>Swab Limit (ppm)</th>
+                        </tr></thead>
+                        <tbody>
+                          {(stepGrp.equipment || []).map((eq, ei) => (
+                            <tr key={ei} style={{ background: ei % 2 === 0 ? "white" : "#fffbf5" }}>
+                              <td style={S.td}>{eq.name}</td><td style={S.td}>{eq.category_name || "—"}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{eq.surface_area_in2 ?? "—"}</td>
+                              <td style={{ ...S.td, textAlign: "center" }}>{eq.rinse_volume_L ?? "—"}</td>
+                              <td style={{ ...S.td, textAlign: "center", fontWeight: "700", color: "#9a3412" }}>10.0</td>
+                              <td style={{ ...S.td, textAlign: "center", fontWeight: "700", color: "#9a3412" }}>10.0</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* § 6 Conclusion */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>3. Procedure</p>
-          <p style={{ ...S.para, marginBottom: "10px" }}>
-            Three (3) consecutive runs shall be conducted. For each run, the following data shall be recorded:
+          <p style={S.sectionTitle}>6. Conclusion</p>
+          {r.scenario === "fixed_10ppm" ? (
+            <p style={S.para}>The cleaning limits for <strong>{r.source}</strong> ({r.source_category}) have been determined by applying the <strong>Fixed 10 ppm criterion</strong>. All rinse and swab acceptance limits are set at <strong>10.0 ppm</strong>.
+              {r.data.length > 0 ? ` A total of ${r.data.length} target product(s) were evaluated.` : ""}
+              {" "}The limits must be analytically detectable by the <strong>{r.analytical_method || "specified"}</strong> method (LOQ: {r.loq_ppm} ppm).</p>
+          ) : (
+            <p style={S.para}>The cleaning limits for <strong>{r.source}</strong> have been calculated using the <strong>{r.policy_label || r.policy}</strong> approach. Governing MACO: <strong>{r.governing_maco ?? "—"} mg</strong>.
+              {r.data.length > 0 ? ` A total of ${r.data.length} target product(s) were evaluated.` : ""}
+              {" "}Limits are analytically detectable and meet acceptance criteria.</p>
+          )}
+        </div>
+
+        {/* § 7 Swab Sampling Plan */}
+        <div style={S.section} className="doc-section">
+          <p style={S.sectionTitle}>7. Swab Sampling Plan</p>
+          <p style={S.para}>The following swab sampling locations are defined for each equipment category.
+            All samples shall be collected after cleaning and before next product manufacture.</p>
+          {relevantPlan.length === 0
+            ? <p style={{ color: "#888", fontStyle: "italic", fontSize: "12px" }}>No sampling plan configured.</p>
+            : relevantPlan.map(cat => (
+              <div key={cat.category_id} className="sampling-cat-block"
+                style={{ marginBottom: "16px", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+                <div style={{ background: "#004f9f", color: "white", padding: "8px 14px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: "bold", fontSize: "13px" }}>{cat.category_name}</span>
+                  <span style={{ fontSize: "11px", opacity: 0.85 }}>{cat.entries.length} swab sample{cat.entries.length !== 1 ? "s" : ""}</span>
+                </div>
+                <table style={{ ...S.dataTable, margin: 0 }}>
+                  <thead><tr style={{ background: "#e8f0fb" }}>
+                    <th style={{ ...S.th, width: "120px" }}>Sample No.</th>
+                    <th style={S.th}>Location / Description</th>
+                  </tr></thead>
+                  <tbody>
+                    {cat.entries.map((entry, i) => (
+                      <tr key={entry.entry_id} style={{ background: i % 2 === 0 ? "white" : "#f8fafc" }}>
+                        <td style={{ ...S.td, fontFamily: "monospace", fontWeight: "bold", color: "#004f9f" }}>{entry.sample_number}</td>
+                        <td style={S.td}>{entry.location_description}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+        </div>
+
+        {/* § 8 DEHT Procedure */}
+        <div style={S.section} className="doc-section">
+          <p style={S.sectionTitle}>8. DEHT Study Procedure</p>
+          <p style={S.para}>
+            Three (3) consecutive runs shall be conducted. For each run, the following data shall be recorded
+            for every equipment item in addition to the cleaning validation sampling results:
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
             {[1, 2, 3].map(runNo => (
               <div key={runNo} style={{ border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
                 <div style={{ background: "#004f9f", color: "white", padding: "8px 14px", fontWeight: "bold", fontSize: "13px" }}>
@@ -744,22 +1299,24 @@ ${reportPrintRef.current.innerHTML}
                   <thead>
                     <tr style={{ background: "#e8f0fb" }}>
                       <th style={S.th}>Equipment Name</th>
+                      <th style={S.th}>Category</th>
                       <th style={S.th}>Usage Completion Date/Time</th>
                       <th style={S.th}>Cleaning Start Date/Time</th>
-                      <th style={S.th}>Hold Time (hrs)</th>
-                      <th style={S.th}>Sample Points</th>
+                      <th style={{ ...S.th, textAlign: "center" }}>Hold Time (hrs)</th>
+                      <th style={{ ...S.th, textAlign: "center" }}>Acceptance Limit</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {eqList.length === 0 ? (
-                      <tr><td colSpan={5} style={{ ...S.td, color: "#aaa", fontStyle: "italic", textAlign: "center" }}>No equipment</td></tr>
-                    ) : eqList.map((eq, i) => (
+                    {allEquipment.length === 0 ? (
+                      <tr><td colSpan={6} style={{ ...S.td, color: "#aaa", fontStyle: "italic", textAlign: "center" }}>No shared equipment</td></tr>
+                    ) : allEquipment.map((eq, i) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? "white" : "#f8fafc" }}>
-                        <td style={{ ...S.td, fontWeight: "600" }}>{eq.equipment_name || eq.name || "—"}</td>
+                        <td style={{ ...S.td, fontWeight: "600" }}>{eq.name}</td>
+                        <td style={S.td}>{eq.category_name || "—"}</td>
                         <td style={{ ...S.td, color: "#aaa", fontStyle: "italic" }}>To be recorded</td>
                         <td style={{ ...S.td, color: "#aaa", fontStyle: "italic" }}>To be recorded</td>
                         <td style={{ ...S.td, color: "#aaa", fontStyle: "italic", textAlign: "center" }}>Calculated</td>
-                        <td style={{ ...S.td, color: "#aaa", fontStyle: "italic" }}>Per sampling plan</td>
+                        <td style={{ ...S.td, textAlign: "center", fontWeight: "bold", color: "#004f9f" }}>≤ {hrs} hrs</td>
                       </tr>
                     ))}
                   </tbody>
@@ -769,27 +1326,28 @@ ${reportPrintRef.current.innerHTML}
           </div>
         </div>
 
-        {/* § 4 Acceptance Criteria */}
+        {/* § 9 DEHT Acceptance Criteria */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>4. Acceptance Criteria</p>
+          <p style={S.sectionTitle}>9. DEHT Acceptance Criteria</p>
           <div style={{ background: "#eef4ff", border: "1px solid #c7d9f7", borderRadius: "8px", padding: "16px 20px", marginBottom: "12px" }}>
             <p style={{ margin: 0, fontSize: "14px", color: "#004f9f", fontWeight: "bold" }}>
               Maximum Allowable Dirty Hold Time: <span style={{ fontSize: "20px" }}>{hrs} hours</span>
+              {dehtMeta?.updated_by && (
+                <span style={{ marginLeft: "16px", fontSize: "11px", fontWeight: "normal", color: "#666" }}>
+                  (Policy set by {dehtMeta.updated_by}{dehtMeta.updated_at ? ` on ${new Date(dehtMeta.updated_at).toLocaleDateString("en-IN")}` : ""})
+                </span>
+              )}
             </p>
           </div>
           <p style={S.para}>
             The actual hold time for each equipment in each run shall not exceed <strong>{hrs} hours</strong>.
-            Hold time is calculated as: <em>Cleaning Start Date/Time minus Equipment Usage Completion Date/Time</em>.
+            Hold time = Cleaning Start Date/Time − Equipment Usage Completion Date/Time.
             Any exceedance shall be treated as an OOS event and investigated per applicable SOP.
           </p>
           <table style={S.dataTable}>
-            <thead>
-              <tr style={{ background: "#e8f0fb" }}>
-                <th style={S.th}>Parameter</th>
-                <th style={S.th}>Limit</th>
-                <th style={S.th}>Evaluation</th>
-              </tr>
-            </thead>
+            <thead><tr style={{ background: "#e8f0fb" }}>
+              <th style={S.th}>Parameter</th><th style={S.th}>Limit</th><th style={S.th}>Evaluation</th>
+            </tr></thead>
             <tbody>
               <tr>
                 <td style={S.td}>Dirty Equipment Hold Time</td>
@@ -805,32 +1363,15 @@ ${reportPrintRef.current.innerHTML}
           </table>
         </div>
 
-        {/* § 5 Sampling */}
+        {/* § 10 References */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>5. Sampling</p>
-          <p style={S.para}>
-            Sample locations as defined in the Cleaning Validation Sampling Plan. Visual inspection and/or
-            analytical sampling shall be performed post-cleaning after each hold time run to verify cleanability
-            is not adversely affected. All sample points shall be documented in the corresponding DEHT report.
-          </p>
-        </div>
-
-        {/* § 6 References */}
-        <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>6. References</p>
-          <table style={S.dataTable}>
-            <tbody>
-              <tr><td style={S.tdKey}>DEHT Limit Source</td><td style={S.tdVal}>Cleaning Validation Calculation Policy — Lifecycle Management</td></tr>
-              <tr><td style={S.tdKey}>DEHT Hours</td><td style={S.tdVal}><strong>{hrs} hours</strong></td></tr>
-              {dehtMeta && (
-                <>
-                  <tr><td style={S.tdKey}>Policy Updated By</td><td style={S.tdVal}>{dehtMeta.updated_by || "—"}</td></tr>
-                  <tr><td style={S.tdKey}>Policy Updated At</td><td style={S.tdVal}>{dehtMeta.updated_at ? new Date(dehtMeta.updated_at).toLocaleDateString("en-IN") : "—"}</td></tr>
-                </>
-              )}
-              <tr><td style={S.tdKey}>Regulatory Basis</td><td style={S.tdVal}>ICH Q7, EU GMP Annex 15, Site Cleaning Validation SOP</td></tr>
-            </tbody>
-          </table>
+          <p style={S.sectionTitle}>10. References</p>
+          <table style={S.dataTable}><tbody>
+            <tr><td style={S.tdKey}>Cleaning Policy</td><td style={S.tdVal}>{r.policy_label || r.policy}</td></tr>
+            <tr><td style={S.tdKey}>DEHT Limit</td><td style={S.tdVal}><strong>{hrs} hours</strong> — set in Cleaning Validation Calculation Policy</td></tr>
+            <tr><td style={S.tdKey}>Regulatory Basis</td><td style={S.tdVal}>ICH Q7, EMA/CHMP/CVMP/SWP/169430/2012, EU GMP Annex 15, Site SOP</td></tr>
+            <tr><td style={S.tdKey}>Analytical Method</td><td style={S.tdVal}>{r.analytical_method || "—"} (LOD: {r.lod_ppm} ppm, LOQ: {r.loq_ppm} ppm)</td></tr>
+          </tbody></table>
         </div>
 
         {/* Signatures */}
@@ -838,7 +1379,7 @@ ${reportPrintRef.current.innerHTML}
           {["Prepared By", "Reviewed By", "Approved By"].map(lbl => (
             <div key={lbl} style={S.sigBox}>
               <p style={{ margin: "0 0 30px", fontSize: "12px", color: "#333" }}>{lbl}</p>
-              <div style={{ borderBottom: "1px solid #333", marginBottom: "4px" }} />
+              <div style={{ borderBottom: "1px solid #333", marginBottom: "4px" }}/>
               <p style={{ margin: 0, fontSize: "11px", color: "#888" }}>Name / Date / Signature</p>
             </div>
           ))}
@@ -913,14 +1454,18 @@ ${reportPrintRef.current.innerHTML}
               <td style={{ ...S.tdKey, width: "180px" }}>Training Details</td>
               <td style={S.tdVal}>{results_data.training_details || "—"}</td>
             </tr>
+            <tr>
+              <td style={S.tdKey}>SOP Followed</td>
+              <td style={S.tdVal}>{results_data.sop_followed || "—"}</td>
+            </tr>
           </tbody></table>
         </div>
 
-        {/* § 3 DEHT Results per Run */}
+        {/* § 3 DEHT Hold Time Results per Run */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>3. DEHT Results</p>
+          <p style={S.sectionTitle}>3. Dirty Equipment Hold Time Results</p>
           {runs.map((run, ri) => (
-            <div key={ri} style={{ marginBottom: "20px", border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
+            <div key={ri} style={{ marginBottom: "16px", border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
               <div style={{ background: "#004f9f", color: "white", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: "bold", fontSize: "13px" }}>Run {run.run_number}</span>
                 <span style={{ fontSize: "12px", opacity: 0.85 }}>Batch: {run.batch_number || "—"}</span>
@@ -929,12 +1474,12 @@ ${reportPrintRef.current.innerHTML}
                 <thead>
                   <tr style={{ background: "#e8f0fb" }}>
                     <th style={S.th}>Equipment</th>
+                    <th style={S.th}>Category</th>
                     <th style={S.th}>Usage Completion</th>
                     <th style={S.th}>Cleaning Start</th>
                     <th style={{ ...S.th, textAlign: "center" }}>Hold Time (hrs)</th>
                     <th style={{ ...S.th, textAlign: "center" }}>Limit (hrs)</th>
                     <th style={{ ...S.th, textAlign: "center" }}>Status</th>
-                    <th style={S.th}>Sample Points</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -943,12 +1488,12 @@ ${reportPrintRef.current.innerHTML}
                     return (
                       <tr key={ei} style={{ background: ei % 2 === 0 ? "white" : "#f8fafc" }}>
                         <td style={{ ...S.td, fontWeight: "600" }}>{eq.equipment_name || "—"}</td>
+                        <td style={S.td}>{eq.category_name || "—"}</td>
                         <td style={S.td}>{eq.usage_end_datetime ? new Date(eq.usage_end_datetime).toLocaleString("en-IN") : "—"}</td>
                         <td style={S.td}>{eq.cleaning_start_datetime ? new Date(eq.cleaning_start_datetime).toLocaleString("en-IN") : "—"}</td>
                         <td style={{ ...S.td, textAlign: "center", fontWeight: "bold" }}>{ht != null ? ht : "—"}</td>
                         <td style={{ ...S.td, textAlign: "center" }}>{eq.limit_hours ?? hrs}</td>
                         <td style={{ ...S.td, textAlign: "center" }}>{holdTimeBadge(ht, eq.limit_hours ?? hrs)}</td>
-                        <td style={S.td}>{eq.sample_points || "—"}</td>
                       </tr>
                     );
                   })}
@@ -957,6 +1502,119 @@ ${reportPrintRef.current.innerHTML}
             </div>
           ))}
         </div>
+
+        {/* § 4 Cleaning Validation Results (combined 3-run) */}
+        {(() => {
+          const equipmentList = runs[0]?.equipment_results || [];
+          if (equipmentList.length === 0) return null;
+          return (
+            <div style={S.section} className="doc-section">
+              <p style={S.sectionTitle}>4. Cleaning Validation Results</p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "#004f9f", color: "white" }}>
+                      <th rowSpan={2} style={{ ...sampCell, textAlign: "left", verticalAlign: "middle", color: "white" }}>Equipment</th>
+                      <th rowSpan={2} style={{ ...sampCell, textAlign: "left", verticalAlign: "middle", color: "white" }}>Sample</th>
+                      <th rowSpan={2} style={{ ...sampCell, textAlign: "center", verticalAlign: "middle", color: "white" }}>Limit (ppm)</th>
+                      {runs.map(run => (
+                        <th key={run.run_number} colSpan={3} style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #6a9fd8", color: "white" }}>
+                          Run-{run.run_number}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr style={{ background: "#1a6bbd", color: "white" }}>
+                      {runs.map(run => (
+                        <React.Fragment key={run.run_number}>
+                          <th style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #6a9fd8", fontWeight: "normal", color: "white" }}>Insp. Lot No.</th>
+                          <th style={{ ...sampCell, textAlign: "center", fontWeight: "normal", color: "white" }}>Result (ppm)</th>
+                          <th style={{ ...sampCell, textAlign: "center", fontWeight: "normal", color: "white" }}>Status</th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipmentList.map((eq, equipIdx) => {
+                      const isSynth = eq.eq_type === "synthesis";
+                      const isFirstSynth = isSynth && (equipIdx === 0 || equipmentList[equipIdx - 1]?.eq_type !== "synthesis");
+                      const rowCount = 1 + (eq.swab_results?.length || 0);
+                      const bg = isSynth ? "#fffbf5" : (equipIdx % 2 === 0 ? "white" : "#f8fafc");
+                      return (
+                        <React.Fragment key={equipIdx}>
+                          {isFirstSynth && (
+                            <tr>
+                              <td colSpan={3 + runs.length * 3} style={{
+                                padding: "6px 12px", background: "#fff7ed",
+                                borderTop: "2px solid #f97316", borderBottom: "1px solid #fed7aa",
+                                fontWeight: "700", fontSize: "11px", color: "#9a3412", letterSpacing: "0.4px",
+                              }}>
+                                Synthesis Intermediate Steps — Fixed 10 ppm Criterion
+                              </td>
+                            </tr>
+                          )}
+                          <tr style={{ background: bg }}>
+                            <td rowSpan={rowCount} style={{ ...sampCell, fontWeight: "600", verticalAlign: "middle",
+                              borderRight: "2px solid #c7d9f7", background: isSynth ? "#fffbf5" : undefined }}>
+                              {eq.equipment_name}
+                              {eq.category_name && <div style={{ fontWeight: "normal", color: "#666", fontSize: "11px" }}>{eq.category_name}</div>}
+                              {isSynth && <div style={{ fontSize: "10px", color: "#9a3412", fontWeight: "600", marginTop: "2px" }}>Synthesis — Fixed 10 ppm</div>}
+                            </td>
+                            <td style={sampCell}>Rinse</td>
+                            <td style={{ ...sampCell, textAlign: "center" }}>{eq.rinse_limit_ppm ?? "—"}</td>
+                            {runs.map((run, runIdx) => {
+                              const runEq = run.equipment_results[equipIdx];
+                              const rinseStatus = compareResultToLimit(runEq?.rinse_result_ppm, runEq?.rinse_limit_ppm);
+                              return (
+                                <React.Fragment key={runIdx}>
+                                  <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>{runEq?.rinse_lot_number || "—"}</td>
+                                  <td style={{ ...sampCell, textAlign: "center" }}>{runEq?.rinse_result_ppm || "—"}</td>
+                                  <td style={{ ...sampCell, textAlign: "center" }}>
+                                    <span style={{ fontSize: "10px", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+                                      background: rinseStatus === "PASS" ? "#d4edda" : rinseStatus === "FAIL" ? "#f8d7da" : "#f0f0f0",
+                                      color: rinseStatus === "PASS" ? "#155724" : rinseStatus === "FAIL" ? "#721c24" : "#888" }}>
+                                      {rinseStatus || "—"}
+                                    </span>
+                                  </td>
+                                </React.Fragment>
+                              );
+                            })}
+                          </tr>
+                          {(eq.swab_results || []).map((swab, swabIdx) => (
+                            <tr key={swabIdx} style={{ background: bg }}>
+                              <td style={{ ...sampCell, color: isSynth ? "#7c2d12" : "#444" }}>
+                                <span style={{ fontWeight: "600", color: isSynth ? "#9a3412" : "#004f9f" }}>{swab.sample_number}</span>
+                                {" — "}{swab.location_description}
+                              </td>
+                              <td style={{ ...sampCell, textAlign: "center" }}>{eq.swab_limit_ppm ?? "—"}</td>
+                              {runs.map((run, runIdx) => {
+                                const runEq = run.equipment_results[equipIdx];
+                                const runSwab = runEq?.swab_results?.[swabIdx];
+                                const swabStatus = compareResultToLimit(runSwab?.result_ppm, runEq?.swab_limit_ppm);
+                                return (
+                                  <React.Fragment key={runIdx}>
+                                    <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>{runSwab?.lot_number || "—"}</td>
+                                    <td style={{ ...sampCell, textAlign: "center" }}>{runSwab?.result_ppm || "—"}</td>
+                                    <td style={{ ...sampCell, textAlign: "center" }}>
+                                      <span style={{ fontSize: "10px", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+                                        background: swabStatus === "PASS" ? "#d4edda" : swabStatus === "FAIL" ? "#f8d7da" : "#f0f0f0",
+                                        color: swabStatus === "PASS" ? "#155724" : swabStatus === "FAIL" ? "#721c24" : "#888" }}>
+                                        {swabStatus || "—"}
+                                      </span>
+                                    </td>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Signatures */}
         <div style={S.sigGrid} className="sig-grid-print">
@@ -1046,7 +1704,7 @@ ${reportPrintRef.current.innerHTML}
                       {loading ? "Generating..." : "Generate Protocol"}
                     </button>
                 }
-                {protocolData && (
+                {result && (
                   <>
                     <button onClick={handlePrint} style={S.printBtn}>Print PDF</button>
                     {role !== "VIEWER" && (
@@ -1069,7 +1727,7 @@ ${reportPrintRef.current.innerHTML}
             </div>
           )}
 
-          {!displayProtocol && !loading && (
+          {!displayResult && !loading && (
             <div style={S.emptyState}>
               <p style={{ margin: 0, color: "#888" }}>
                 Select a facility and product, then click <strong>Generate Protocol</strong>.
@@ -1077,7 +1735,7 @@ ${reportPrintRef.current.innerHTML}
             </div>
           )}
 
-          {displayProtocol && (
+          {displayResult && (
             <div style={{ background: "#c8cdd6", padding: "28px 0 40px", margin: "0 -20px" }}>
               <div style={{ maxWidth: "794px", margin: "0 auto", padding: "0 16px" }}>
                 {renderProtocolDoc()}
@@ -1210,91 +1868,216 @@ ${reportPrintRef.current.innerHTML}
                     </div>
                   )}
 
-                  {/* 3 Runs */}
-                  {runResults.map((run, runIdx) => (
-                    <div key={runIdx} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", marginBottom: "20px", overflow: "hidden" }}>
-                      <div style={{ background: "#004f9f", color: "white", padding: "10px 14px",
-                        display: "flex", alignItems: "center", gap: "16px" }}>
-                        <span style={{ fontWeight: "bold", fontSize: "14px" }}>Run {run.run_number}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "12px", opacity: 0.85 }}>Batch Number:</label>
-                          <input
-                            value={run.batch_number}
-                            onChange={e => handleRunChange(runIdx, 0, "batch_number", e.target.value)}
-                            placeholder="e.g. B-2025-001"
-                            style={{ padding: "4px 8px", borderRadius: "4px", border: "none", fontSize: "13px",
-                              width: "160px", color: "#333" }} />
+                  {/* Section A: Hold Time Records (per-run) */}
+                  <div style={{ marginBottom: "24px" }}>
+                    <h4 style={{ color: "#004f9f", margin: "0 0 12px", fontSize: "14px", borderBottom: "2px solid #004f9f", paddingBottom: "6px" }}>
+                      A. Dirty Equipment Hold Time Records
+                    </h4>
+                    {runResults.map((run, runIdx) => (
+                      <div key={runIdx} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", marginBottom: "14px", overflow: "hidden" }}>
+                        <div style={{ background: "#004f9f", color: "white", padding: "8px 14px",
+                          display: "flex", alignItems: "center", gap: "16px" }}>
+                          <span style={{ fontWeight: "bold", fontSize: "14px" }}>Run {run.run_number}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <label style={{ fontSize: "12px", opacity: 0.85 }}>Batch Number:</label>
+                            <input
+                              value={run.batch_number}
+                              onChange={e => handleRunChange(runIdx, 0, "batch_number", e.target.value)}
+                              placeholder="e.g. B-2025-001"
+                              style={{ padding: "4px 8px", borderRadius: "4px", border: "none", fontSize: "13px", width: "160px", color: "#333" }} />
+                          </div>
                         </div>
+                        {run.equipment_results.length === 0 ? (
+                          <div style={{ padding: "16px", color: "#aaa", fontStyle: "italic", textAlign: "center", fontSize: "13px" }}>
+                            No equipment loaded. Select a protocol above.
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                              <thead>
+                                <tr style={{ background: "#e8f0fb" }}>
+                                  <th style={sampCell}>Equipment Name</th>
+                                  <th style={sampCell}>Category</th>
+                                  <th style={sampCell}>Usage Completion Date/Time</th>
+                                  <th style={sampCell}>Cleaning Start Date/Time</th>
+                                  <th style={{ ...sampCell, textAlign: "center" }}>Hold Time (hrs)</th>
+                                  <th style={{ ...sampCell, textAlign: "center" }}>Limit (hrs)</th>
+                                  <th style={{ ...sampCell, textAlign: "center" }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {run.equipment_results.map((eq, ei) => {
+                                  const ht = eq.hold_time_hours != null
+                                    ? eq.hold_time_hours
+                                    : calcHoldTime(eq.usage_end_datetime, eq.cleaning_start_datetime);
+                                  const lim = eq.limit_hours ?? reportDehtHours;
+                                  return (
+                                    <tr key={ei} style={{ background: ei % 2 === 0 ? "white" : "#f8fafc" }}>
+                                      <td style={{ ...sampCell, fontWeight: "600" }}>{eq.equipment_name || "—"}</td>
+                                      <td style={{ ...sampCell, color: "#666" }}>{eq.category_name || "—"}</td>
+                                      <td style={sampCell}>
+                                        <input type="datetime-local"
+                                          value={eq.usage_end_datetime || ""}
+                                          onChange={e => handleRunChange(runIdx, ei, "usage_end_datetime", e.target.value)}
+                                          style={{ padding: "4px 6px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "12px" }} />
+                                      </td>
+                                      <td style={sampCell}>
+                                        <input type="datetime-local"
+                                          value={eq.cleaning_start_datetime || ""}
+                                          onChange={e => handleRunChange(runIdx, ei, "cleaning_start_datetime", e.target.value)}
+                                          style={{ padding: "4px 6px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "12px" }} />
+                                      </td>
+                                      <td style={{ ...sampCell, textAlign: "center", fontWeight: "bold",
+                                        color: ht != null ? (ht > (lim || Infinity) ? "#dc3545" : "#155724") : "#666" }}>
+                                        {ht != null ? ht : "—"}
+                                      </td>
+                                      <td style={{ ...sampCell, textAlign: "center" }}>{lim ?? "—"}</td>
+                                      <td style={{ ...sampCell, textAlign: "center" }}>{holdTimeBadge(ht, lim)}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
+                    ))}
+                  </div>
 
-                      {run.equipment_results.length === 0 ? (
-                        <div style={{ padding: "16px", color: "#aaa", fontStyle: "italic", textAlign: "center", fontSize: "13px" }}>
-                          No equipment loaded. Select a protocol and click Load.
-                        </div>
-                      ) : (
-                        <div style={{ overflowX: "auto" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                            <thead>
-                              <tr style={{ background: "#e8f0fb" }}>
-                                <th style={sampCell}>Equipment Name</th>
-                                <th style={sampCell}>Usage Completion Date/Time</th>
-                                <th style={sampCell}>Cleaning Start Date/Time</th>
-                                <th style={{ ...sampCell, textAlign: "center" }}>Hold Time (hrs)</th>
-                                <th style={{ ...sampCell, textAlign: "center" }}>Limit (hrs)</th>
-                                <th style={{ ...sampCell, textAlign: "center" }}>Status</th>
-                                <th style={sampCell}>Sample Points</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {run.equipment_results.map((eq, ei) => {
-                                const ht = eq.hold_time_hours != null
-                                  ? eq.hold_time_hours
-                                  : calcHoldTime(eq.usage_end_datetime, eq.cleaning_start_datetime);
-                                const lim = eq.limit_hours ?? reportDehtHours;
-                                return (
-                                  <tr key={ei} style={{ background: ei % 2 === 0 ? "white" : "#f8fafc" }}>
-                                    <td style={{ ...sampCell, fontWeight: "600" }}>{eq.equipment_name || "—"}</td>
-                                    <td style={sampCell}>
-                                      <input
-                                        type="datetime-local"
-                                        value={eq.usage_end_datetime || ""}
-                                        onChange={e => handleRunChange(runIdx, ei, "usage_end_datetime", e.target.value)}
-                                        style={{ padding: "4px 6px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "12px" }} />
+                  {/* Section B: Cleaning Results (combined 3-run table) */}
+                  <div style={{ marginBottom: "24px" }}>
+                    <h4 style={{ color: "#004f9f", margin: "0 0 12px", fontSize: "14px", borderBottom: "2px solid #004f9f", paddingBottom: "6px" }}>
+                      B. Cleaning Validation Results
+                    </h4>
+                    {runResults[0]?.equipment_results.length === 0 ? (
+                      <div style={{ padding: "16px", color: "#aaa", fontStyle: "italic", textAlign: "center", fontSize: "13px" }}>
+                        No equipment loaded. Select a protocol above.
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                          <thead>
+                            <tr style={{ background: "#004f9f", color: "white" }}>
+                              <th rowSpan={2} style={{ ...sampCell, textAlign: "left", verticalAlign: "middle", color: "white" }}>Equipment</th>
+                              <th rowSpan={2} style={{ ...sampCell, textAlign: "left", verticalAlign: "middle", color: "white" }}>Sample</th>
+                              <th rowSpan={2} style={{ ...sampCell, textAlign: "center", verticalAlign: "middle", color: "white" }}>Limit (ppm)</th>
+                              {runResults.map(run => (
+                                <th key={run.run_number} colSpan={3} style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #6a9fd8", color: "white" }}>
+                                  Run-{run.run_number}
+                                </th>
+                              ))}
+                            </tr>
+                            <tr style={{ background: "#1a6bbd", color: "white" }}>
+                              {runResults.map(run => (
+                                <React.Fragment key={run.run_number}>
+                                  <th style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #6a9fd8", fontWeight: "normal", color: "white" }}>Insp. Lot No.</th>
+                                  <th style={{ ...sampCell, textAlign: "center", fontWeight: "normal", color: "white" }}>Result (ppm)</th>
+                                  <th style={{ ...sampCell, textAlign: "center", fontWeight: "normal", color: "white" }}>Status</th>
+                                </React.Fragment>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(runResults[0]?.equipment_results || []).map((eq, equipIdx) => {
+                              const isSynth = eq.eq_type === "synthesis";
+                              const isFirstSynth = isSynth && (equipIdx === 0 || runResults[0].equipment_results[equipIdx - 1]?.eq_type !== "synthesis");
+                              const rowCount = 1 + (eq.swab_results?.length || 0);
+                              const bg = isSynth ? "#fffbf5" : (equipIdx % 2 === 0 ? "white" : "#f8fafc");
+                              return (
+                                <React.Fragment key={equipIdx}>
+                                  {isFirstSynth && (
+                                    <tr>
+                                      <td colSpan={3 + runResults.length * 3} style={{
+                                        padding: "6px 12px", background: "#fff7ed",
+                                        borderTop: "2px solid #f97316", borderBottom: "1px solid #fed7aa",
+                                        fontWeight: "700", fontSize: "11px", color: "#9a3412", letterSpacing: "0.4px",
+                                      }}>
+                                        Synthesis Intermediate Steps — Fixed 10 ppm Criterion
+                                      </td>
+                                    </tr>
+                                  )}
+                                  <tr style={{ background: bg }}>
+                                    <td rowSpan={rowCount} style={{ ...sampCell, fontWeight: "600", verticalAlign: "middle",
+                                      borderRight: "2px solid #c7d9f7", background: isSynth ? "#fffbf5" : undefined }}>
+                                      {eq.equipment_name}
+                                      {eq.category_name && <div style={{ fontWeight: "normal", color: "#666", fontSize: "11px" }}>{eq.category_name}</div>}
+                                      {isSynth && <div style={{ fontSize: "10px", color: "#9a3412", fontWeight: "600", marginTop: "2px" }}>Synthesis — Fixed 10 ppm</div>}
                                     </td>
-                                    <td style={sampCell}>
-                                      <input
-                                        type="datetime-local"
-                                        value={eq.cleaning_start_datetime || ""}
-                                        onChange={e => handleRunChange(runIdx, ei, "cleaning_start_datetime", e.target.value)}
-                                        style={{ padding: "4px 6px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "12px" }} />
-                                    </td>
-                                    <td style={{ ...sampCell, textAlign: "center", fontWeight: "bold",
-                                      color: ht != null ? (ht > (lim || Infinity) ? "#dc3545" : "#155724") : "#666" }}>
-                                      {ht != null ? ht : "—"}
-                                    </td>
-                                    <td style={{ ...sampCell, textAlign: "center" }}>
-                                      {lim ?? "—"}
-                                    </td>
-                                    <td style={{ ...sampCell, textAlign: "center" }}>
-                                      {holdTimeBadge(ht, lim)}
-                                    </td>
-                                    <td style={sampCell}>
-                                      <input
-                                        value={eq.sample_points || ""}
-                                        onChange={e => handleRunChange(runIdx, ei, "sample_points", e.target.value)}
-                                        placeholder="e.g. S-0001, S-0002"
-                                        style={{ padding: "4px 6px", borderRadius: "4px", border: "1px solid #ccc",
-                                          fontSize: "12px", width: "140px" }} />
-                                    </td>
+                                    <td style={sampCell}>Rinse</td>
+                                    <td style={{ ...sampCell, textAlign: "center" }}>{eq.rinse_limit_ppm ?? "—"}</td>
+                                    {runResults.map((run, runIdx) => {
+                                      const runEq = run.equipment_results[equipIdx];
+                                      const rinseStatus = compareResultToLimit(runEq?.rinse_result_ppm, runEq?.rinse_limit_ppm);
+                                      return (
+                                        <React.Fragment key={runIdx}>
+                                          <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>
+                                            <input value={runEq?.rinse_lot_number || ""}
+                                              onChange={e => handleRunChange(runIdx, equipIdx, "rinse_lot_number", e.target.value)}
+                                              placeholder="Lot #"
+                                              style={{ width: "80px", padding: "3px 5px", borderRadius: "3px", border: "1px solid #ccc", fontSize: "11px" }} />
+                                          </td>
+                                          <td style={{ ...sampCell, textAlign: "center" }}>
+                                            <input value={runEq?.rinse_result_ppm || ""}
+                                              onChange={e => handleRunChange(runIdx, equipIdx, "rinse_result_ppm", e.target.value)}
+                                              placeholder="ppm"
+                                              style={{ width: "60px", padding: "3px 5px", borderRadius: "3px", border: "1px solid #ccc", fontSize: "11px" }} />
+                                          </td>
+                                          <td style={{ ...sampCell, textAlign: "center" }}>
+                                            <span style={{ fontSize: "10px", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+                                              background: rinseStatus === "PASS" ? "#d4edda" : rinseStatus === "FAIL" ? "#f8d7da" : "#f0f0f0",
+                                              color: rinseStatus === "PASS" ? "#155724" : rinseStatus === "FAIL" ? "#721c24" : "#888" }}>
+                                              {rinseStatus || "—"}
+                                            </span>
+                                          </td>
+                                        </React.Fragment>
+                                      );
+                                    })}
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                                  {(eq.swab_results || []).map((swab, swabIdx) => (
+                                    <tr key={swabIdx} style={{ background: bg }}>
+                                      <td style={{ ...sampCell, color: isSynth ? "#7c2d12" : "#444" }}>
+                                        <span style={{ fontWeight: "600", color: isSynth ? "#9a3412" : "#004f9f" }}>{swab.sample_number}</span>
+                                        {" — "}{swab.location_description}
+                                      </td>
+                                      <td style={{ ...sampCell, textAlign: "center" }}>{eq.swab_limit_ppm ?? "—"}</td>
+                                      {runResults.map((run, runIdx) => {
+                                        const runEq = run.equipment_results[equipIdx];
+                                        const runSwab = runEq?.swab_results?.[swabIdx];
+                                        const swabStatus = compareResultToLimit(runSwab?.result_ppm, runEq?.swab_limit_ppm);
+                                        return (
+                                          <React.Fragment key={runIdx}>
+                                            <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>
+                                              <input value={runSwab?.lot_number || ""}
+                                                onChange={e => handleRunChange(runIdx, equipIdx, "swab_lot_number", e.target.value, swabIdx)}
+                                                placeholder="Lot #"
+                                                style={{ width: "80px", padding: "3px 5px", borderRadius: "3px", border: "1px solid #ccc", fontSize: "11px" }} />
+                                            </td>
+                                            <td style={{ ...sampCell, textAlign: "center" }}>
+                                              <input value={runSwab?.result_ppm || ""}
+                                                onChange={e => handleRunChange(runIdx, equipIdx, "swab_result_ppm", e.target.value, swabIdx)}
+                                                placeholder="ppm"
+                                                style={{ width: "60px", padding: "3px 5px", borderRadius: "3px", border: "1px solid #ccc", fontSize: "11px" }} />
+                                            </td>
+                                            <td style={{ ...sampCell, textAlign: "center" }}>
+                                              <span style={{ fontSize: "10px", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+                                                background: swabStatus === "PASS" ? "#d4edda" : swabStatus === "FAIL" ? "#f8d7da" : "#f0f0f0",
+                                                color: swabStatus === "PASS" ? "#155724" : swabStatus === "FAIL" ? "#721c24" : "#888" }}>
+                                                {swabStatus || "—"}
+                                              </span>
+                                            </td>
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Metadata fields */}
                   <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px", marginBottom: "20px" }}>
@@ -1448,13 +2231,13 @@ ${reportPrintRef.current.innerHTML}
             <tr><td style={{ padding: "3px 8px", color: "#888", width: "130px" }}>Document No.</td>
                 <td style={{ padding: "3px 8px", fontWeight: "bold" }}>{displayDocNumber}</td></tr>
             <tr><td style={{ padding: "3px 8px", color: "#888" }}>Product</td>
-                <td style={{ padding: "3px 8px" }}>{protocolData?.productName}</td></tr>
+                <td style={{ padding: "3px 8px" }}>{sourceProduct?.product_name}</td></tr>
             <tr><td style={{ padding: "3px 8px", color: "#888" }}>Facility</td>
-                <td style={{ padding: "3px 8px" }}>{protocolData?.facilityName}</td></tr>
+                <td style={{ padding: "3px 8px" }}>{facilities.find(f => f.facility_id === sourceProduct?.facility_id)?.facility_name}</td></tr>
             <tr><td style={{ padding: "3px 8px", color: "#888" }}>DEHT Limit</td>
                 <td style={{ padding: "3px 8px", fontWeight: "bold", color: "#004f9f" }}>{dehtHours} hours</td></tr>
-            <tr><td style={{ padding: "3px 8px", color: "#888" }}>Equipment Count</td>
-                <td style={{ padding: "3px 8px" }}>{protocolData?.equipmentList?.length || 0} equipment items</td></tr>
+            <tr><td style={{ padding: "3px 8px", color: "#888" }}>Sampling Locations</td>
+                <td style={{ padding: "3px 8px" }}>{protocolSamplingPlan.reduce((n, c) => n + c.entries.length, 0)} total across {protocolSamplingPlan.filter(c => c.entries.length > 0).length} categories</td></tr>
           </tbody></table>
           <label style={S.label}>Status</label>
           <select value={saveStatus} onChange={e => setSaveStatus(e.target.value)} style={S.input}>
