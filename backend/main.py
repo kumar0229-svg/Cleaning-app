@@ -14,6 +14,7 @@ import time
 import datetime
 import logging
 import requests as http_requests
+import sqlite3
 
 # ── File logging ────────────────────────────────────────────────────
 _LOG_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
@@ -84,6 +85,7 @@ from models.cleaning_report import CleaningValidationReport
 from models.deht_report import DEHTReport
 from models.ccv import ContinuousCleaningVerification
 from models.lifecycle_verification import LifeCycleVerification
+from models.password_reset_request import PasswordResetRequest
 from roles_config import ROLES_CAN_VIEW, ROLES_CAN_EDIT, ROLES_CAN_DELETE, ROLES_CAN_VIEW_AUDIT, ROLES_CAN_MANAGE_USERS, ROLES_CAN_MANAGE_POLICY
 
 app = FastAPI(title="Cleaning Carryover Limit Estimator")
@@ -202,6 +204,12 @@ def startup():
         "CREATE INDEX IF NOT EXISTS idx_pe_equipment         ON product_equipment(equipment_id)",
         "CREATE INDEX IF NOT EXISTS idx_equipment_facility   ON equipment(facility_id)",
         "CREATE INDEX IF NOT EXISTS idx_audit_entity         ON audit_log(entity_type, entity_id)",
+        "CREATE INDEX IF NOT EXISTS idx_maco_runs_product    ON maco_runs(source_product_id)",
+        "CREATE INDEX IF NOT EXISTS idx_maco_runs_run_at     ON maco_runs(run_at)",
+        "CREATE INDEX IF NOT EXISTS idx_protocol_generated   ON protocol_archive(generated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_timestamp      ON audit_log(timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_cvr_status           ON cleaning_validation_reports(status)",
+        "CREATE INDEX IF NOT EXISTS idx_cvr_product          ON cleaning_validation_reports(product_id)",
     ]
     migrations = (_sqlite_migrations if _is_sqlite else []) + _index_migrations
     with engine.connect() as conn:
@@ -281,6 +289,25 @@ def startup():
             db.add(SystemConfig(config_key="deht_hours", config_value="72",
                                 updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
             db.commit()
+    finally:
+        db.close()
+
+    # Seed default data retention policy settings
+    _retention_defaults = {
+        "retention_maco_runs_years":     "3",
+        "retention_maco_results_years":  "3",
+        "retention_audit_log_years":     "7",
+        "retention_draft_reports_years": "1",
+        "retention_cleanup_auto":        "false",
+        "retention_last_run":            "",
+    }
+    db = SessionLocal()
+    try:
+        for _rkey, _rval in _retention_defaults.items():
+            if not db.query(SystemConfig).filter(SystemConfig.config_key == _rkey).first():
+                db.add(SystemConfig(config_key=_rkey, config_value=_rval,
+                                    updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+        db.commit()
     finally:
         db.close()
 
@@ -1032,6 +1059,278 @@ def update_policy(
     log_audit(db, "UPDATE", "SYSTEM", 0, "maco_policy", old_policy, req.policy, current_user.username)
     logger.info(f"MACO policy changed from '{old_policy}' to '{req.policy}' by {current_user.username}")
     return {"message": f"Policy updated to '{req.policy}'", "description": VALID_POLICIES[req.policy]}
+
+# ===================================================
+# DATA RETENTION POLICY
+# ===================================================
+
+_RETENTION_CATEGORIES = [
+    {
+        "key":           "retention_maco_runs_years",
+        "label":         "MACO Calculation History",
+        "description":   "Historical MACO matrix runs stored per source product.",
+        "table":         "maco_runs",
+        "date_col":      "run_at",
+        "is_text_date":  True,
+        "status_filter": None,
+        "default":       "3",
+    },
+    {
+        "key":           "retention_maco_results_years",
+        "label":         "MACO Result Records",
+        "description":   "Individual MACO limit rows linked to each calculation run.",
+        "table":         "maco_results",
+        "date_col":      "timestamp",
+        "is_text_date":  False,
+        "status_filter": None,
+        "default":       "3",
+    },
+    {
+        "key":           "retention_audit_log_years",
+        "label":         "Audit Log",
+        "description":   "System-wide change history — who changed what and when.",
+        "table":         "audit_log",
+        "date_col":      "timestamp",
+        "is_text_date":  False,
+        "status_filter": None,
+        "default":       "7",
+    },
+    {
+        "key":           "retention_draft_reports_years",
+        "label":         "Draft Validation Reports",
+        "description":   "Cleaning validation reports saved as drafts and never submitted.",
+        "table":         "cleaning_validation_reports",
+        "date_col":      "created_at",
+        "is_text_date":  True,
+        "status_filter": "Draft",
+        "default":       "1",
+    },
+]
+
+_VALID_RETENTION_YEARS = {"0", "1", "2", "3", "5", "7", "10"}
+
+ARCHIVE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maco_archive.db")
+
+
+def _retention_col_expr(table: str, date_col: str, is_text: bool, years: int) -> tuple:
+    """Return (col_expr, cutoff_expr) for a WHERE clause."""
+    if _is_sqlite:
+        col = f"datetime({date_col})" if is_text else date_col
+        cutoff = f"datetime('now', '-{years} years')"
+    else:
+        col = f"CAST({date_col} AS TIMESTAMPTZ)" if is_text else date_col
+        cutoff = f"NOW() - INTERVAL '{years} years'"
+    return col, cutoff
+
+
+def _archive_records(cat: dict, col_expr: str, cutoff_expr: str, archived_by: str, now_iso: str) -> int:
+    """
+    Copy rows older than the retention period from the main DB into maco_archive.db,
+    then delete them from the main DB. Returns the number of rows archived.
+    Raises on any failure so the main-DB delete is never reached if archiving fails.
+    """
+    extra     = f" AND status = '{cat['status_filter']}'" if cat["status_filter"] else ""
+    where_sql = f"{col_expr} < {cutoff_expr}{extra}"
+    table     = cat["table"]
+
+    # 1. Read matching rows from main DB
+    with engine.connect() as conn:
+        result    = conn.execute(text(f"SELECT * FROM {table} WHERE {where_sql}"))
+        col_names = list(result.keys())
+        rows      = result.fetchall()
+
+    if not rows:
+        return 0
+
+    # 2. Write to archive SQLite (maco_archive.db)
+    arch = sqlite3.connect(ARCHIVE_DB_PATH)
+    try:
+        col_defs     = ", ".join([f'"{c}" TEXT' for c in col_names]
+                                 + ['"archived_at" TEXT', '"archived_by" TEXT'])
+        arch.execute(f'CREATE TABLE IF NOT EXISTS "{table}_archive" ({col_defs})')
+        placeholders = ", ".join(["?" for _ in col_names + ["archived_at", "archived_by"]])
+        insert_cols  = ", ".join([f'"{c}"' for c in col_names]
+                                 + ['"archived_at"', '"archived_by"'])
+        sql          = f'INSERT INTO "{table}_archive" ({insert_cols}) VALUES ({placeholders})'
+        for row in rows:
+            values = [str(v) if v is not None else None for v in row] + [now_iso, archived_by]
+            arch.execute(sql, values)
+        arch.commit()
+    finally:
+        arch.close()
+
+    # 3. Delete from main DB only after archive write succeeded
+    with engine.connect() as conn:
+        conn.execute(text(f"DELETE FROM {table} WHERE {where_sql}"))
+        conn.commit()
+
+    return len(rows)
+
+
+@app.get("/retention-policy")
+def get_retention_policy(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = []
+    with engine.connect() as conn:
+        for cat in _RETENTION_CATEGORIES:
+            cfg = db.query(SystemConfig).filter(SystemConfig.config_key == cat["key"]).first()
+            years_str = cfg.config_value if cfg else cat["default"]
+
+            # total records in this category
+            try:
+                where_status = f" WHERE status = '{cat['status_filter']}'" if cat["status_filter"] else ""
+                total = conn.execute(text(f"SELECT COUNT(*) FROM {cat['table']}{where_status}")).scalar()
+            except Exception:
+                total = None
+
+            # records older than retention period (would be deleted)
+            deletable = None
+            if years_str and years_str != "0":
+                try:
+                    years = int(years_str)
+                    col_expr, cutoff_expr = _retention_col_expr(
+                        cat["table"], cat["date_col"], cat["is_text_date"], years
+                    )
+                    extra = f" AND status = '{cat['status_filter']}'" if cat["status_filter"] else ""
+                    deletable = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {cat['table']} WHERE {col_expr} < {cutoff_expr}{extra}"
+                    )).scalar()
+                except Exception:
+                    deletable = None
+
+            result.append({
+                "key":               cat["key"],
+                "label":             cat["label"],
+                "description":       cat["description"],
+                "years":             years_str,
+                "total_records":     total,
+                "deletable_records": deletable,
+                "updated_by":        cfg.updated_by if cfg else "system",
+                "updated_at":        cfg.updated_at if cfg else None,
+            })
+
+    last_run_cfg = db.query(SystemConfig).filter(SystemConfig.config_key == "retention_last_run").first()
+    auto_cfg     = db.query(SystemConfig).filter(SystemConfig.config_key == "retention_cleanup_auto").first()
+
+    return {
+        "categories":    result,
+        "last_run":      last_run_cfg.config_value if last_run_cfg else "",
+        "auto_cleanup":  auto_cfg.config_value if auto_cfg else "false",
+        "archive_db_path": ARCHIVE_DB_PATH,
+    }
+
+
+class RetentionPolicyUpdateRequest(BaseModel):
+    settings:     dict
+    auto_cleanup: str
+    password:     str
+
+
+@app.put("/retention-policy")
+def update_retention_policy(
+    req: RetentionPolicyUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ["ADMIN"])
+    if not verify_password(req.password, current_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect password ❌")
+    if req.auto_cleanup not in ("true", "false"):
+        raise HTTPException(status_code=400, detail="auto_cleanup must be 'true' or 'false'")
+
+    valid_keys = {cat["key"] for cat in _RETENTION_CATEGORIES}
+    for key, val in req.settings.items():
+        if key not in valid_keys:
+            raise HTTPException(status_code=400, detail=f"Unknown retention key: {key}")
+        if str(val) not in _VALID_RETENTION_YEARS:
+            raise HTTPException(status_code=400, detail=f"Invalid retention value '{val}'. Must be one of {sorted(_VALID_RETENTION_YEARS)}")
+
+    now_iso = datetime.datetime.utcnow().isoformat()
+
+    for key, val in req.settings.items():
+        row = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
+        old_val = row.config_value if row else ""
+        if row:
+            row.config_value = str(val)
+            row.updated_by   = current_user.username
+            row.updated_at   = now_iso
+        else:
+            db.add(SystemConfig(config_key=key, config_value=str(val),
+                                updated_by=current_user.username, updated_at=now_iso))
+        log_audit(db, "UPDATE", "SYSTEM", 0, key, old_val, str(val), current_user.username)
+
+    auto_row = db.query(SystemConfig).filter(SystemConfig.config_key == "retention_cleanup_auto").first()
+    if auto_row:
+        auto_row.config_value = req.auto_cleanup
+        auto_row.updated_by   = current_user.username
+        auto_row.updated_at   = now_iso
+    else:
+        db.add(SystemConfig(config_key="retention_cleanup_auto", config_value=req.auto_cleanup,
+                            updated_by=current_user.username, updated_at=now_iso))
+
+    db.commit()
+    logger.info(f"Retention policy updated by {current_user.username}: {req.settings}")
+    return {"message": "Retention policy saved successfully ✅"}
+
+
+class RetentionRunRequest(BaseModel):
+    password: str
+
+
+@app.post("/retention-policy/run")
+def run_retention_cleanup(
+    req: RetentionRunRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ["ADMIN"])
+    if not verify_password(req.password, current_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect password ❌")
+
+    now_iso        = datetime.datetime.utcnow().isoformat()
+    archived_counts = {}
+
+    for cat in _RETENTION_CATEGORIES:
+        cfg       = db.query(SystemConfig).filter(SystemConfig.config_key == cat["key"]).first()
+        years_str = cfg.config_value if cfg else cat["default"]
+
+        if not years_str or years_str == "0":
+            archived_counts[cat["label"]] = 0
+            continue
+
+        try:
+            years = int(years_str)
+        except ValueError:
+            archived_counts[cat["label"]] = 0
+            continue
+
+        col_expr, cutoff_expr = _retention_col_expr(
+            cat["table"], cat["date_col"], cat["is_text_date"], years
+        )
+
+        try:
+            count = _archive_records(cat, col_expr, cutoff_expr, current_user.username, now_iso)
+            archived_counts[cat["label"]] = count
+        except Exception as e:
+            logger.error(f"Archive error for {cat['table']}: {e}")
+            archived_counts[cat["label"]] = -1
+
+    # Record last run timestamp
+    last_run_row = db.query(SystemConfig).filter(SystemConfig.config_key == "retention_last_run").first()
+    if last_run_row:
+        last_run_row.config_value = now_iso
+        last_run_row.updated_by   = current_user.username
+        last_run_row.updated_at   = now_iso
+    else:
+        db.add(SystemConfig(config_key="retention_last_run", config_value=now_iso,
+                            updated_by=current_user.username, updated_at=now_iso))
+    db.commit()
+
+    log_audit(db, "ARCHIVE", "SYSTEM", 0, "data_retention_archive", "", str(archived_counts), current_user.username)
+    logger.info(f"Retention archive run by {current_user.username}: {archived_counts}")
+    return {"message": "Archive completed ✅", "archived": archived_counts}
 
 # ===================================================
 # MATRIX — FULL MACO CALCULATION (3 methods)
@@ -1963,6 +2262,142 @@ def change_own_password(
     logger.info(f"User {current_user.username} changed their password")
 
     return {"message": "Password changed successfully ✅"}
+
+# ===================================================
+# FORGOT PASSWORD — user submits a reset request
+# ===================================================
+class ForgotPasswordRequest(BaseModel):
+    username: str
+
+@app.post("/forgot-password")
+def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        User.username == req.username,
+        User.is_archived == False
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Username not found ❌")
+
+    existing = db.query(PasswordResetRequest).filter(
+        PasswordResetRequest.username == req.username,
+        PasswordResetRequest.status == "pending"
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A reset request is already pending for this user ❌")
+
+    new_req = PasswordResetRequest(
+        username=req.username,
+        requested_at=datetime.datetime.utcnow().isoformat(),
+        status="pending",
+    )
+    db.add(new_req)
+    db.commit()
+    logger.info(f"Forgot-password request submitted for user: {req.username}")
+    return {"message": "Reset request submitted. Please contact your administrator."}
+
+# ===================================================
+# ADMIN — list pending password reset requests
+# ===================================================
+@app.get("/users/reset-requests")
+def list_reset_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    requests = (
+        db.query(PasswordResetRequest)
+        .filter(PasswordResetRequest.status == "pending")
+        .order_by(PasswordResetRequest.requested_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "username": r.username,
+            "requested_at": r.requested_at,
+            "status": r.status,
+        }
+        for r in requests
+    ]
+
+# ===================================================
+# ADMIN — approve a reset request
+# ===================================================
+class ApproveResetRequest(BaseModel):
+    new_password: str
+    admin_password: str
+
+@app.post("/users/reset-requests/{request_id}/approve")
+def approve_reset_request(
+    request_id: int,
+    req: ApproveResetRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+
+    if not verify_password(req.admin_password, current_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect admin password ❌")
+
+    reset_req = db.query(PasswordResetRequest).filter(
+        PasswordResetRequest.id == request_id,
+        PasswordResetRequest.status == "pending"
+    ).first()
+    if not reset_req:
+        raise HTTPException(status_code=404, detail="Reset request not found or already handled")
+
+    user = db.query(User).filter(User.username == reset_req.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    user.password = hash_password(req.new_password)
+    user.force_password_reset = True
+
+    reset_req.status = "approved"
+    reset_req.handled_by = current_user.username
+    reset_req.handled_at = datetime.datetime.utcnow().isoformat()
+    db.commit()
+
+    log_audit(db, "APPROVE_PASSWORD_RESET", "USER", user.user_id,
+              "password", "", "approved by admin", current_user.username)
+    logger.info(f"Admin {current_user.username} approved password reset for {reset_req.username}")
+    return {"message": f"Password reset for '{reset_req.username}'. User must change it on next login."}
+
+# ===================================================
+# ADMIN — reject a reset request
+# ===================================================
+class RejectResetRequest(BaseModel):
+    admin_password: str
+
+@app.post("/users/reset-requests/{request_id}/reject")
+def reject_reset_request(
+    request_id: int,
+    req: RejectResetRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+
+    if not verify_password(req.admin_password, current_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect admin password ❌")
+
+    reset_req = db.query(PasswordResetRequest).filter(
+        PasswordResetRequest.id == request_id,
+        PasswordResetRequest.status == "pending"
+    ).first()
+    if not reset_req:
+        raise HTTPException(status_code=404, detail="Reset request not found or already handled")
+
+    reset_req.status = "rejected"
+    reset_req.handled_by = current_user.username
+    reset_req.handled_at = datetime.datetime.utcnow().isoformat()
+    db.commit()
+
+    logger.info(f"Admin {current_user.username} rejected password reset for {reset_req.username}")
+    return {"message": f"Reset request for '{reset_req.username}' rejected."}
 
 @app.post("/users/archive/{username}")
 def archive_user(

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import LoginPage from "./LoginPage";
 import ForceChangePasswordPage from "./ForceChangePasswordPage";
 import PolicyPage from "./PolicyPage";
@@ -15,7 +15,9 @@ import LifeCycleManagementPage from "./LifeCycleManagementPage";
 import DashboardPage from "./DashboardPage";
 import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
-import logo from "./assets/cipla-logo.png";
+import DataRetentionPage from "./DataRetentionPage";
+import logo from "./assets/falcon-logo.svg";
+import Footer from "./Footer";
 
 const icons = {
   /* Dashboard / bar chart */
@@ -161,6 +163,18 @@ const icons = {
       <line x1="8" y1="17" x2="16" y2="17"/>
     </svg>
   ),
+  /* Data Retention / hourglass with clock */
+  retention: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+      <path d="M5 3h14M5 21h14"/>
+      <path d="M6 3v4l6 5-6 5v4"/>
+      <path d="M18 3v4l-6 5 6 5v4"/>
+      <circle cx="18" cy="6" r="3" fill="#004f9f" stroke="none" opacity="0.25"/>
+      <circle cx="18" cy="6" r="1.2" fill="#004f9f" stroke="none"/>
+      <line x1="18" y1="4" x2="18" y2="6"/>
+      <line x1="18" y1="6" x2="19.2" y2="6.8"/>
+    </svg>
+  ),
   /* Life Cycle Management / timeline with milestones */
   lifecycle: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
@@ -287,6 +301,7 @@ function App() {
           setLoggedIn(true);
           setPage("home");
         }} />
+        <Footer />
       </>
     );
   }
@@ -300,6 +315,7 @@ function App() {
           onPasswordChanged={() => setForceReset(false)}
           onLogout={logout}
         />
+        <Footer />
       </>
     );
   }
@@ -318,20 +334,21 @@ function App() {
     </div>
   );
 
-  if (page === "facility") return <>{offlineBanner}{warningOverlay}<FacilityPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "equipment") return <>{offlineBanner}{warningOverlay}<EquipmentPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "product") return <>{offlineBanner}{warningOverlay}<ProductPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "matrix") return <>{offlineBanner}{warningOverlay}<MatrixPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "audit") return <>{offlineBanner}{warningOverlay}<AuditPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "query") return <>{offlineBanner}{warningOverlay}<NlpQueryPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "users")  return <>{offlineBanner}{warningOverlay}<UserManagementPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => setPage("home")} /></>;
-  if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => setPage("home")} currentUser={user} /></>;
-  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
-  if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => setPage("home")} currentUser={user} role={role} /></>;
+  if (page === "facility") return <>{offlineBanner}{warningOverlay}<FacilityPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "equipment") return <>{offlineBanner}{warningOverlay}<EquipmentPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "product") return <>{offlineBanner}{warningOverlay}<ProductPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "matrix") return <>{offlineBanner}{warningOverlay}<MatrixPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "audit") return <>{offlineBanner}{warningOverlay}<AuditPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "query") return <>{offlineBanner}{warningOverlay}<NlpQueryPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "users")  return <>{offlineBanner}{warningOverlay}<UserManagementPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => setPage("home")} /><Footer /></>;
+  if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "retention") return <>{offlineBanner}{warningOverlay}<DataRetentionPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
 
   const cards = [
     { key: "dashboard", label: "Dashboard",          color: "#e0f2fe" },
@@ -358,7 +375,7 @@ function App() {
 
       {/* HEADER */}
       <div style={styles.header}>
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logo} alt="Falcon" style={styles.logo} />
         <h2 style={styles.headerText}>Cleaning Limit Software</h2>
         <button
           style={styles.helpBtn}
@@ -414,6 +431,17 @@ function App() {
               </div>
               <p style={styles.cardLabel}>Calculation Policy</p>
             </div>
+            <div
+              style={styles.card}
+              onClick={() => setPage("retention")}
+              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+            >
+              <div style={{ ...styles.iconBox, background: "#fef9ec" }}>
+                <span style={{ color: "#004f9f" }}>{icons.retention}</span>
+              </div>
+              <p style={styles.cardLabel}>Data Retention Policy</p>
+            </div>
           </>
         )}
       </div>
@@ -427,6 +455,8 @@ function App() {
         Logout
       </button>
 
+      <Footer />
+
     </div>
   );
 }
@@ -434,6 +464,7 @@ function App() {
 const styles = {
   container: {
     padding: "20px",
+    paddingBottom: "52px",
     fontFamily: "Arial",
     background: "#f1f5f9",
     minHeight: "100vh"

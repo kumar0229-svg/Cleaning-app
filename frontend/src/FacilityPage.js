@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import logo from "./assets/falcon-logo.svg";
 
 function FacilityPage({ goHome, currentUser }) {
   const [name, setName] = useState("");
@@ -116,7 +116,7 @@ function FacilityPage({ goHome, currentUser }) {
         </head>
         <body>
           <div class="header">
-            <img src="${logo}" alt="Cipla" />
+            <img src="${logo}" alt="Falcon" />
             <div class="header-text">
               <h2>Cleaning Limit Software</h2>
               <p>Facility Master Report</p>
@@ -125,7 +125,7 @@ function FacilityPage({ goHome, currentUser }) {
           </div>
           ${printContent}
           <div class="footer">
-            <span>Cipla Ltd. — Confidential</span>
+            <span>Falcon — Confidential</span>
             <span>Total Records: ${facilities.length}</span>
             <span>Printed by: ${currentUser || "Unknown"}</span>
           </div>

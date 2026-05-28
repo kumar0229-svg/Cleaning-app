@@ -1,11 +1,38 @@
-import React, { useState } from "react";
-import logo from "./assets/cipla-logo.png";
+﻿import React, { useState } from "react";
+import logo from "./assets/falcon-logo.svg";
 import api from "./api";
 
 function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [showForgot, setShowForgot]           = useState(false);
+  const [forgotUsername, setForgotUsername]   = useState("");
+  const [forgotLoading, setForgotLoading]     = useState(false);
+  const [forgotSuccess, setForgotSuccess]     = useState(false);
+  const [forgotError, setForgotError]         = useState("");
+
+  const openForgot = () => {
+    setForgotUsername("");
+    setForgotError("");
+    setForgotSuccess(false);
+    setShowForgot(true);
+  };
+
+  const submitForgot = async () => {
+    if (!forgotUsername.trim()) { setForgotError("Enter your username ❌"); return; }
+    setForgotLoading(true);
+    setForgotError("");
+    try {
+      await api.post("/forgot-password", { username: forgotUsername.trim() });
+      setForgotSuccess(true);
+    } catch (err) {
+      setForgotError(err.response?.data?.detail || "Request failed ❌");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -25,7 +52,7 @@ function LoginPage({ onLogin }) {
     <div style={styles.container}>
       <div style={styles.card}>
 
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logo} alt="Falcon" style={styles.logo} />
 
         <h2 style={styles.title}>
           Cleaning Limit Software
@@ -81,11 +108,71 @@ function LoginPage({ onLogin }) {
           Login
         </button>
 
+        <p style={{ margin: "10px 0 0", textAlign: "center" }}>
+          <button type="button" onClick={openForgot} style={styles.forgotLink}>
+            Forgot Password?
+          </button>
+        </p>
+
         <p style={styles.footnote}>
-          Developed by Cipla Bommasandra Quality Team
+          Developed by Kumar
         </p>
 
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgot && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            {forgotSuccess ? (
+              <>
+                <div style={{ fontSize: "36px", marginBottom: "10px" }}>✅</div>
+                <h3 style={{ margin: "0 0 8px", color: "#065f46", fontSize: "16px" }}>Request Submitted</h3>
+                <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#555", lineHeight: "1.6" }}>
+                  Your password reset request has been sent to the administrator.
+                  Please contact your administrator to set a new temporary password for you.
+                </p>
+                <button style={styles.button} onClick={() => setShowForgot(false)}>Close</button>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: "0 0 6px", color: "#004f9f", fontSize: "16px" }}>Forgot Password</h3>
+                <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#666" }}>
+                  Enter your username and an administrator will be notified to reset your password.
+                </p>
+                <input
+                  style={{ ...styles.input, margin: "0 0 8px" }}
+                  placeholder="Enter your username"
+                  value={forgotUsername}
+                  onChange={e => setForgotUsername(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") submitForgot(); }}
+                  autoFocus
+                />
+                {forgotError && (
+                  <p style={{ margin: "0 0 8px", color: "#dc3545", fontSize: "12px" }}>{forgotError}</p>
+                )}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    style={{ ...styles.button, margin: 0, flex: 1, opacity: forgotLoading ? 0.7 : 1 }}
+                    onClick={submitForgot}
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? "Submitting..." : "Submit Request"}
+                  </button>
+                  <button
+                    style={styles.cancelBtn}
+                    onClick={() => setShowForgot(false)}
+                    disabled={forgotLoading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -170,7 +257,45 @@ const styles = {
     padding: "2px",
     display: "flex",
     alignItems: "center"
-  }
+  },
+  forgotLink: {
+    background: "none",
+    border: "none",
+    color: "#004f9f",
+    cursor: "pointer",
+    fontSize: "13px",
+    textDecoration: "underline",
+    padding: 0,
+  },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  modalBox: {
+    background: "white",
+    borderRadius: "12px",
+    padding: "28px",
+    width: "380px",
+    maxWidth: "90vw",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+    textAlign: "center",
+  },
+  cancelBtn: {
+    flex: 1,
+    padding: "12px",
+    background: "#f1f5f9",
+    color: "#333",
+    border: "1px solid #ccc",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "14px",
+  },
 };
 
 export default LoginPage;

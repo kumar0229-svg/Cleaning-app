@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 
 const tableStyle = { borderCollapse: "collapse", width: "100%", fontSize: 13 };
 const thStyle = { padding: "8px 10px", textAlign: "left", border: "1px solid #ddd" };
@@ -223,7 +223,7 @@ const faqGroups = [
         a: "Use the Print / Export PDF button on the protocol or report detail view. This opens a print-formatted page in a new tab. In the browser print dialog, set the destination to 'Save as PDF'.",
       },
       {
-        q: "The printed document is missing the Cipla logo — why?",
+        q: "The printed document is missing the Falcon logo — why?",
         a: "The logo is embedded as a local asset. If printing from a different machine or browser, ensure the app is served correctly and the assets folder is accessible. The logo loads relative to the application's origin.",
       },
       {

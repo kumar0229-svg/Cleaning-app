@@ -169,11 +169,67 @@ function UserManagementPage({ goHome, currentUser }) {
   const [restoreReason, setRestoreReason]     = useState("");
   const [restoreLoading, setRestoreLoading]   = useState(false);
 
-  // Reset password modal
+  // Reset password modal (direct admin reset)
   const [resetModal, setResetModal]           = useState(null); // { username }
   const [resetNewPwd, setResetNewPwd]         = useState("");
   const [resetAdminPwd, setResetAdminPwd]     = useState("");
   const [resetLoading, setResetLoading]       = useState(false);
+
+  // Forgot-password requests
+  const [resetRequests, setResetRequests]         = useState([]);
+  const [resetReqLoading, setResetReqLoading]     = useState(false);
+  const [approveModal, setApproveModal]           = useState(null); // { id, username }
+  const [approvePwd, setApprovePwd]               = useState("");
+  const [approveAdminPwd, setApproveAdminPwd]     = useState("");
+  const [approveLoading, setApproveLoading]       = useState(false);
+  const [rejectModal, setRejectModal]             = useState(null); // { id, username }
+  const [rejectAdminPwd, setRejectAdminPwd]       = useState("");
+  const [rejectLoading, setRejectLoading]         = useState(false);
+
+  const loadResetRequests = async () => {
+    setResetReqLoading(true);
+    try {
+      const res = await api.get("/users/reset-requests");
+      setResetRequests(res.data);
+    } catch (err) { console.log(err); }
+    finally { setResetReqLoading(false); }
+  };
+
+  const confirmApprove = async () => {
+    if (!approvePwd.trim() || approvePwd.length < 6) { alert("New password must be at least 6 characters ❌"); return; }
+    if (!approveAdminPwd) { alert("Enter your admin password ❌"); return; }
+    setApproveLoading(true);
+    try {
+      await api.post(`/users/reset-requests/${approveModal.id}/approve`, {
+        new_password: approvePwd,
+        admin_password: approveAdminPwd,
+      });
+      setApproveModal(null);
+      alert(`Password reset for "${approveModal.username}" ✅\nUser will be prompted to change it on next login.`);
+      loadResetRequests();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Approve failed ❌");
+    } finally {
+      setApproveLoading(false);
+    }
+  };
+
+  const confirmReject = async () => {
+    if (!rejectAdminPwd) { alert("Enter your admin password ❌"); return; }
+    setRejectLoading(true);
+    try {
+      await api.post(`/users/reset-requests/${rejectModal.id}/reject`, {
+        admin_password: rejectAdminPwd,
+      });
+      setRejectModal(null);
+      alert(`Reset request for "${rejectModal.username}" rejected.`);
+      loadResetRequests();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Reject failed ❌");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -184,7 +240,7 @@ function UserManagementPage({ goHome, currentUser }) {
     }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); loadResetRequests(); }, []);
 
   const addUser = () => {
     if (!username.trim() || !password.trim()) {
@@ -484,6 +540,147 @@ function UserManagementPage({ goHome, currentUser }) {
           </div>
         )}
       </div>
+
+      {/* Password Reset Requests */}
+      <div style={{ marginTop: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+          <h3 style={{ margin: 0, fontSize: "15px", color: "#004f9f" }}>
+            Password Reset Requests
+          </h3>
+          {resetRequests.length > 0 && (
+            <span style={{ background: "#dc3545", color: "white", borderRadius: "12px",
+              padding: "2px 8px", fontSize: "11px", fontWeight: "bold" }}>
+              {resetRequests.length} pending
+            </span>
+          )}
+          <button onClick={loadResetRequests} style={styles.refreshBtn}>Refresh</button>
+        </div>
+
+        {resetReqLoading ? (
+          <p style={{ color: "#888", fontSize: "13px" }}>Loading...</p>
+        ) : resetRequests.length === 0 ? (
+          <p style={{ color: "#888", fontSize: "13px" }}>No pending password reset requests.</p>
+        ) : (
+          <div style={{ overflowX: "auto", background: "white", borderRadius: "10px",
+            border: "1px solid #ffc107", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <div style={{ padding: "10px 14px", background: "#fff3cd", borderRadius: "10px 10px 0 0",
+              borderBottom: "1px solid #ffc107", fontSize: "13px", fontWeight: "bold", color: "#856404" }}>
+              The following users have requested a password reset
+            </div>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "#856404", color: "white" }}>
+                  <th style={cell}>#</th>
+                  <th style={cell}>Username</th>
+                  <th style={cell}>Requested At</th>
+                  <th style={cell}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resetRequests.map((r, index) => (
+                  <tr key={r.id} style={{ background: index % 2 === 0 ? "#fffbeb" : "white" }}>
+                    <td style={cell}>{r.id}</td>
+                    <td style={{ ...cell, fontWeight: "bold" }}>{r.username}</td>
+                    <td style={cell}>
+                      {r.requested_at ? new Date(r.requested_at).toLocaleString("en-IN") : "—"}
+                    </td>
+                    <td style={cell}>
+                      <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                        <button
+                          onClick={() => { setApproveModal({ id: r.id, username: r.username }); setApprovePwd(""); setApproveAdminPwd(""); }}
+                          style={{ ...styles.resetBtn, background: "#28a745" }}
+                        >
+                          Approve & Reset
+                        </button>
+                        <button
+                          onClick={() => { setRejectModal({ id: r.id, username: r.username }); setRejectAdminPwd(""); }}
+                          style={{ ...styles.resetBtn, background: "#dc3545" }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Approve Reset Request Modal */}
+      {approveModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <h3 style={{ margin: "0 0 6px", fontSize: "16px", color: "#333" }}>Approve Password Reset</h3>
+            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#555" }}>
+              Set a temporary password for <strong>"{approveModal.username}"</strong>.<br />
+              They will be forced to change it on their next login.
+            </p>
+            <label style={styles.modalLabel}>New Temporary Password</label>
+            <input
+              type="password"
+              value={approvePwd}
+              onChange={e => setApprovePwd(e.target.value)}
+              placeholder="Min 6 characters"
+              style={styles.modalInput}
+              autoFocus
+            />
+            <label style={{ ...styles.modalLabel, marginTop: "10px" }}>Your Admin Password</label>
+            <input
+              type="password"
+              value={approveAdminPwd}
+              onChange={e => setApproveAdminPwd(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirmApprove(); }}
+              placeholder="Enter your login password"
+              style={styles.modalInput}
+            />
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+              <button
+                onClick={confirmApprove}
+                disabled={approveLoading}
+                style={approveLoading ? styles.confirmBtnDisabled : { ...styles.confirmBtn, background: "#28a745" }}
+              >
+                {approveLoading ? "Approving..." : "Confirm & Reset"}
+              </button>
+              <button onClick={() => setApproveModal(null)} style={styles.cancelBtn}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reset Request Modal */}
+      {rejectModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <h3 style={{ margin: "0 0 6px", fontSize: "16px", color: "#333" }}>Reject Reset Request</h3>
+            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#555" }}>
+              Reject the password reset request for <strong>"{rejectModal.username}"</strong>?<br />
+              Their password will not be changed.
+            </p>
+            <label style={styles.modalLabel}>Your Admin Password</label>
+            <input
+              type="password"
+              value={rejectAdminPwd}
+              onChange={e => setRejectAdminPwd(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirmReject(); }}
+              placeholder="Enter your login password"
+              style={styles.modalInput}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+              <button
+                onClick={confirmReject}
+                disabled={rejectLoading}
+                style={rejectLoading ? styles.confirmBtnDisabled : styles.confirmBtn}
+              >
+                {rejectLoading ? "Rejecting..." : "Confirm Reject"}
+              </button>
+              <button onClick={() => setRejectModal(null)} style={styles.cancelBtn}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Archived Users Toggle */}
       <div style={{ marginTop: "20px" }}>

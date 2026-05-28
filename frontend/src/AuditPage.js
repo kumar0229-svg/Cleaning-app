@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import logo from "./assets/falcon-logo.svg";
 import Pagination from "./Pagination";
 import { exportCsv } from "./exportCsv";
 
@@ -152,7 +152,7 @@ function AuditPage({ goHome, currentUser }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Cipla" />
+          <img src="${logo}" alt="Falcon" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>Audit Trail Report</p>
@@ -162,7 +162,7 @@ function AuditPage({ goHome, currentUser }) {
         </div>
         ${printRef.current.innerHTML}
         <div class="footer">
-          <span>Cipla Ltd. — Confidential</span>
+          <span>Falcon — Confidential</span>
           <span>Records: ${filtered.length}</span>
           <span>Printed by: ${currentUser || "Unknown"}</span>
         </div>

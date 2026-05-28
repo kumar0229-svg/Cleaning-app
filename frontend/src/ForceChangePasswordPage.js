@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import logo from "./assets/cipla-logo.png";
+﻿import React, { useState } from "react";
+import logo from "./assets/falcon-logo.svg";
 import api from "./api";
 
 function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
@@ -36,7 +36,7 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logo} alt="Falcon" style={styles.logo} />
         <h2 style={styles.title}>Set New Password</h2>
         <p style={styles.subtitle}>
           Welcome, <strong>{currentUser}</strong>. You must set a new password before continuing.
