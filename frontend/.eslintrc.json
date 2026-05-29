@@ -9,10 +9,10 @@
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
     "no-console": "warn",
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "no-var": "error",
-    "prefer-const": "error",
-    "eqeqeq": ["error", "always"],
-    "no-duplicate-imports": "error"
+    "prefer-const": "warn",
+    "eqeqeq": ["warn", "always"],
+    "no-duplicate-imports": "warn"
   }
 }

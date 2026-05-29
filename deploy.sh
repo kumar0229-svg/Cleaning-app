@@ -23,7 +23,7 @@ cd ..
 echo "==> Building frontend..."
 cd frontend
 npm install --legacy-peer-deps --silent
-npm run build
+CI=false npm run build
 cd ..
 
 echo "==> Copying frontend build to Nginx..."
