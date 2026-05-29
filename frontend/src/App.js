@@ -209,6 +209,12 @@ function App() {
   const logoutTimer = useRef(null);
   const warningTimer = useRef(null);
 
+  const navigate = useCallback((newPage) => {
+    setPage(newPage);
+    const url = newPage === "home" ? "/" : `/${newPage}`;
+    window.history.pushState({ page: newPage }, "", url);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
     setLoggedIn(false);
@@ -217,6 +223,7 @@ function App() {
     setForceReset(false);
     setPage("home");
     setShowWarning(false);
+    window.history.replaceState({ page: "home" }, "", "/");
   }, []);
 
   const resetTimers = useCallback(() => {
@@ -271,6 +278,18 @@ function App() {
   }, [loggedIn, resetTimers]);
 
   useEffect(() => {
+    window.history.replaceState({ page: "home" }, "", "/");
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = (e) => {
+      setPage(e.state?.page ?? "home");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
     if (!loggedIn) return;
 
     const handleBeforeUnload = (e) => {
@@ -300,6 +319,7 @@ function App() {
           setForceReset(!!mustReset);
           setLoggedIn(true);
           setPage("home");
+          window.history.replaceState({ page: "home" }, "", "/");
         }} />
         <Footer />
       </>
@@ -334,21 +354,21 @@ function App() {
     </div>
   );
 
-  if (page === "facility") return <>{offlineBanner}{warningOverlay}<FacilityPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "equipment") return <>{offlineBanner}{warningOverlay}<EquipmentPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "product") return <>{offlineBanner}{warningOverlay}<ProductPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "matrix") return <>{offlineBanner}{warningOverlay}<MatrixPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "audit") return <>{offlineBanner}{warningOverlay}<AuditPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "query") return <>{offlineBanner}{warningOverlay}<NlpQueryPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "users")  return <>{offlineBanner}{warningOverlay}<UserManagementPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => setPage("home")} /><Footer /></>;
-  if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
-  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => setPage("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "retention") return <>{offlineBanner}{warningOverlay}<DataRetentionPage goHome={() => setPage("home")} currentUser={user} /><Footer /></>;
+  if (page === "facility") return <>{offlineBanner}{warningOverlay}<FacilityPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "equipment") return <>{offlineBanner}{warningOverlay}<EquipmentPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "product") return <>{offlineBanner}{warningOverlay}<ProductPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "matrix") return <>{offlineBanner}{warningOverlay}<MatrixPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "audit") return <>{offlineBanner}{warningOverlay}<AuditPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "query") return <>{offlineBanner}{warningOverlay}<NlpQueryPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "users")  return <>{offlineBanner}{warningOverlay}<UserManagementPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => navigate("home")} /><Footer /></>;
+  if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
+  if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "retention") return <>{offlineBanner}{warningOverlay}<DataRetentionPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
 
   const cards = [
     { key: "dashboard", label: "Dashboard",          color: "#e0f2fe" },
@@ -379,7 +399,7 @@ function App() {
         <h2 style={styles.headerText}>Cleaning Limit Software</h2>
         <button
           style={styles.helpBtn}
-          onClick={() => setPage("help")}
+          onClick={() => navigate("help")}
         >
           ? Help
         </button>
@@ -396,7 +416,7 @@ function App() {
           <div
             key={card.key}
             style={styles.card}
-            onClick={() => setPage(card.key)}
+            onClick={() => navigate(card.key)}
             onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
             onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
           >
@@ -411,7 +431,7 @@ function App() {
           <>
             <div
               style={styles.card}
-              onClick={() => setPage("users")}
+              onClick={() => navigate("users")}
               onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
               onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
             >
@@ -422,7 +442,7 @@ function App() {
             </div>
             <div
               style={styles.card}
-              onClick={() => setPage("policy")}
+              onClick={() => navigate("policy")}
               onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
               onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
             >
@@ -433,7 +453,7 @@ function App() {
             </div>
             <div
               style={styles.card}
-              onClick={() => setPage("retention")}
+              onClick={() => navigate("retention")}
               onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
               onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
             >
