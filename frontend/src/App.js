@@ -397,12 +397,8 @@ function App() {
       <div style={styles.header}>
         <img src={logo} alt="Falcon" style={styles.logo} />
         <span style={styles.headerText}>Cleaning Limit Software</span>
-        <button
-          style={styles.helpBtn}
-          onClick={() => navigate("help")}
-        >
-          ? Help
-        </button>
+        <button style={styles.helpBtn} onClick={() => navigate("help")}>? Help</button>
+        <button style={styles.logout} onClick={logout}>Logout</button>
       </div>
 
       {/* Welcome */}
@@ -467,14 +463,6 @@ function App() {
       </div>
 
 
-            {/* Logout */}
-      <button
-        style={styles.logout}
-        onClick={logout}
-      >
-        Logout
-      </button>
-
       <Footer />
 
     </div>
@@ -484,7 +472,7 @@ function App() {
 const styles = {
   container: {
     padding: "12px 16px",
-    paddingBottom: "44px",
+    paddingBottom: "52px",
     fontFamily: "'Segoe UI', Arial, sans-serif",
     background: "#f1f5f9",
     minHeight: "100vh"
@@ -548,15 +536,14 @@ const styles = {
     lineHeight: "1.3"
   },
   logout: {
-    marginTop: "14px",
-    padding: "7px 18px",
+    padding: "5px 12px",
     background: "#dc2626",
     color: "white",
     border: "none",
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
-    fontSize: "13px"
+    fontSize: "12px"
   },
   overlay: {
     position: "fixed",
