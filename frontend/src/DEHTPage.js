@@ -2437,4 +2437,9 @@ const S = {
   sigGrid:         { padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "32px" },
   sigBox:          { display: "flex", flexDirection: "column" },
   docFooter:       { background: "#f8fafc", padding: "10px 24px", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#888", borderTop: "1px solid #e2e8f0" },
+  // Formula box layout
+  formulaBox:      { display: "flex", flexDirection: "column", gap: "4px", background: "#f8fafc", border: "1px solid #d0dff7", borderRadius: "6px", padding: "10px 14px" },
+  formulaLabel:    { fontSize: "12px", fontWeight: "700", color: "#004f9f", letterSpacing: "0.2px" },
+  formulaCode:     { fontFamily: "monospace", fontSize: "12px", color: "#1e293b", background: "#e8f0fe", borderRadius: "4px", padding: "5px 8px", whiteSpace: "pre-wrap", wordBreak: "break-word" },
+  formulaNote:     { fontSize: "11px", color: "#64748b", lineHeight: "1.5" },
 };
