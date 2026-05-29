@@ -22,7 +22,7 @@ import Footer from "./Footer";
 const icons = {
   /* Dashboard / bar chart */
   dashboard: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="3" y="3" width="18" height="18" rx="2"/>
       <rect x="7" y="13" width="3" height="5" rx="0.5" fill="currentColor" stroke="none"/>
       <rect x="11" y="9" width="3" height="9" rx="0.5" fill="currentColor" stroke="none"/>
@@ -31,7 +31,7 @@ const icons = {
   ),
   /* Manufacturing facility / building */
   facility: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <path d="M2 20V9l6-5v5l6-5v16"/>
       <path d="M14 20V10l6-4v14"/>
       <line x1="2" y1="20" x2="22" y2="20"/>
@@ -41,7 +41,7 @@ const icons = {
   ),
   /* Industrial equipment / reactor vessel with pipes */
   equipment: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="6" y="6" width="12" height="13" rx="2"/>
       <path d="M9 6V4h6v2"/>
       <path d="M9 19v2h6v-2"/>
@@ -54,7 +54,7 @@ const icons = {
   ),
   /* Pharmaceutical tablet / pill */
   product: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="3" y="9" width="18" height="6" rx="3"/>
       <line x1="12" y1="9" x2="12" y2="15"/>
       <circle cx="6.5" cy="7" r="1.2"/>
@@ -65,7 +65,7 @@ const icons = {
   ),
   /* Cleaning matrix / cross-reference grid with tick */
   matrix: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="3" y="3" width="18" height="18" rx="2"/>
       <line x1="3" y1="9" x2="21" y2="9"/>
       <line x1="3" y1="15" x2="21" y2="15"/>
@@ -76,7 +76,7 @@ const icons = {
   ),
   /* Audit trail / checklist with magnifying glass */
   audit: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="4" y="2" width="12" height="16" rx="2"/>
       <line x1="7" y1="7" x2="13" y2="7"/>
       <line x1="7" y1="10" x2="13" y2="10"/>
@@ -87,7 +87,7 @@ const icons = {
   ),
   /* NLP query / chat bubble with search */
   query: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       <line x1="8" y1="9" x2="16" y2="9"/>
       <line x1="8" y1="13" x2="13" y2="13"/>
@@ -95,7 +95,7 @@ const icons = {
   ),
   /* User management / team */
   users: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <circle cx="9" cy="7" r="3"/>
       <path d="M3 21v-2a5 5 0 0 1 10 0v2"/>
       <circle cx="17" cy="8" r="2.5"/>
@@ -104,7 +104,7 @@ const icons = {
   ),
   /* Calculation policy / scales of justice */
   policy: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <line x1="12" y1="3" x2="12" y2="21"/>
       <path d="M5 21h14"/>
       <path d="M6 6l-3 6h6L6 6z"/>
@@ -114,7 +114,7 @@ const icons = {
   ),
   /* Protocol & report / document with numbered steps */
   protocol: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="4" y="2" width="16" height="20" rx="2"/>
       <line x1="8" y1="7" x2="16" y2="7"/>
       <line x1="8" y1="11" x2="16" y2="11"/>
@@ -124,7 +124,7 @@ const icons = {
   ),
   /* VMP (unused in cards but kept for completeness) */
   vmp: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="3" y="3" width="7" height="7" rx="1"/>
       <rect x="14" y="3" width="7" height="7" rx="1"/>
       <rect x="3" y="14" width="7" height="7" rx="1"/>
@@ -133,7 +133,7 @@ const icons = {
   ),
   /* CCV Protocol & Report — document with refresh cycle */
   ccvprotocol: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <rect x="4" y="2" width="16" height="20" rx="2"/>
       <line x1="8" y1="7" x2="16" y2="7"/>
       <line x1="8" y1="11" x2="16" y2="11"/>
@@ -144,7 +144,7 @@ const icons = {
   ),
   /* Continuous Cleaning Verification / recurring check cycle */
   ccv: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <path d="M4 12a8 8 0 0 1 14.93-3"/>
       <path d="M20 12a8 8 0 0 1-14.93 3"/>
       <polyline points="19 5 19.93 9 15.93 9"/>
@@ -154,7 +154,7 @@ const icons = {
   ),
   /* Genotoxic & Nitrosamine Impurity / DNA double helix */
   genotoxic: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <path d="M8 3 C10 6 14 8 16 11 C14 14 10 16 8 19 C10 22 14 23 16 21"/>
       <path d="M16 3 C14 6 10 8 8 11 C10 14 14 16 16 19 C14 22 10 23 8 21"/>
       <line x1="8.5" y1="8" x2="15.5" y2="8"/>
@@ -165,7 +165,7 @@ const icons = {
   ),
   /* Data Retention / hourglass with clock */
   retention: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <path d="M5 3h14M5 21h14"/>
       <path d="M6 3v4l6 5-6 5v4"/>
       <path d="M18 3v4l-6 5 6 5v4"/>
@@ -177,7 +177,7 @@ const icons = {
   ),
   /* Life Cycle Management / timeline with milestones */
   lifecycle: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:38,height:38}}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
       <line x1="3" y1="12" x2="21" y2="12"/>
       <circle cx="6" cy="12" r="2" fill="currentColor" stroke="none"/>
       <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
@@ -396,7 +396,7 @@ function App() {
       {/* HEADER */}
       <div style={styles.header}>
         <img src={logo} alt="Falcon" style={styles.logo} />
-        <h2 style={styles.headerText}>Cleaning Limit Software</h2>
+        <span style={styles.headerText}>Cleaning Limit Software</span>
         <button
           style={styles.helpBtn}
           onClick={() => navigate("help")}
@@ -406,9 +406,9 @@ function App() {
       </div>
 
       {/* Welcome */}
-      <h3 style={{ marginTop: "20px" }}>
+      <p style={{ margin: "8px 0 0", fontSize: "13px", color: "#374151", fontWeight: 600 }}>
         Welcome, {user} {role ? `(${role})` : ""}
-      </h3>
+      </p>
 
       {/* GRID CARDS */}
       <div style={styles.grid}>
@@ -483,9 +483,9 @@ function App() {
 
 const styles = {
   container: {
-    padding: "20px",
-    paddingBottom: "52px",
-    fontFamily: "Arial",
+    padding: "12px 16px",
+    paddingBottom: "44px",
+    fontFamily: "'Segoe UI', Arial, sans-serif",
     background: "#f1f5f9",
     minHeight: "100vh"
   },
@@ -493,66 +493,70 @@ const styles = {
     display: "flex",
     alignItems: "center",
     background: "#004f9f",
-    padding: "15px",
-    borderRadius: "10px",
+    padding: "8px 14px",
+    borderRadius: "8px",
     gap: "10px"
   },
   logo: {
-    width: "60px"
+    width: "44px"
   },
   headerText: {
     color: "white",
     margin: 0,
-    flex: 1
+    flex: 1,
+    fontSize: "17px"
   },
   helpBtn: {
-    padding: "7px 14px",
+    padding: "5px 12px",
     background: "white",
     color: "#004f9f",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "12px"
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "10px",
+    marginTop: "10px"
+  },
+  card: {
+    background: "white",
+    borderRadius: "10px",
+    textAlign: "center",
+    cursor: "pointer",
+    boxShadow: "0px 2px 8px rgba(0,0,0,0.09)",
+    transition: "transform 0.18s",
+    overflow: "hidden",
+    paddingBottom: "5px"
+  },
+  iconBox: {
+    width: "100%",
+    height: "56px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "10px 10px 0 0",
+  },
+  cardLabel: {
+    fontSize: "11.5px",
+    fontWeight: "bold",
+    color: "#004f9f",
+    margin: "5px 4px 2px",
+    lineHeight: "1.3"
+  },
+  logout: {
+    marginTop: "14px",
+    padding: "7px 18px",
+    background: "#dc2626",
+    color: "white",
     border: "none",
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "bold",
     fontSize: "13px"
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "20px",
-    marginTop: "30px"
-  },
-  card: {
-    background: "white",
-    borderRadius: "14px",
-    textAlign: "center",
-    cursor: "pointer",
-    boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
-    transition: "transform 0.2s",
-    overflow: "hidden",
-    paddingBottom: "6px"
-  },
-  iconBox: {
-    width: "100%",
-    height: "90px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: "14px 14px 0 0",
-  },
-  cardLabel: {
-    fontSize: "15px",
-    fontWeight: "bold",
-    color: "#004f9f",
-    margin: "8px 0 0 0"
-  },
-  logout: {
-    marginTop: "30px",
-    padding: "10px 20px",
-    background: "red",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer"
   },
   overlay: {
     position: "fixed",

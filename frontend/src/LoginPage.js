@@ -188,8 +188,8 @@ const styles = {
   },
   card: {
     background: "white",
-    padding: "40px",
-    width: "380px",
+    padding: "24px 32px",
+    width: "360px",
     borderRadius: "10px",
     boxShadow: "0px 6px 15px rgba(0,0,0,0.1)",
     textAlign: "center"
@@ -197,52 +197,55 @@ const styles = {
   fieldRow: {
     display: "flex",
     alignItems: "center",
-    margin: "10px 0",
+    margin: "8px 0",
   },
   label: {
     width: "80px",
     minWidth: "80px",
     textAlign: "right",
     marginRight: "10px",
-    fontSize: "14px",
+    fontSize: "13px",
     fontWeight: "600",
     color: "#333",
   },
   logo: {
-    width: "120px",
-    marginBottom: "10px"
+    width: "90px",
+    marginBottom: "8px"
   },
   title: {
     color: "#004f9f",
-    marginBottom: "20px"
+    marginBottom: "14px",
+    fontSize: "17px"
   },
   input: {
     flex: 1,
-    padding: "10px",
+    padding: "8px 10px",
     borderRadius: "6px",
     border: "1px solid #ccc",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    fontSize: "13px"
   },
   button: {
     width: "100%",
-    padding: "12px",
+    padding: "10px",
     background: "#004f9f",
     color: "white",
     fontWeight: "bold",
     border: "none",
     borderRadius: "6px",
     cursor: "pointer",
-    marginTop: "10px"
+    marginTop: "10px",
+    fontSize: "14px"
   },
   footnote: {
-    marginTop: "20px",
+    marginTop: "14px",
     marginBottom: 0,
     textAlign: "center",
     fontSize: "11px",
     color: "#004f9f",
     fontWeight: "bold",
     borderTop: "1px solid #f0f4f8",
-    paddingTop: "14px",
+    paddingTop: "10px",
     letterSpacing: "0.2px",
   },
   eyeBtn: {
