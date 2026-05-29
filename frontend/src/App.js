@@ -175,6 +175,14 @@ const icons = {
       <line x1="18" y1="6" x2="19.2" y2="6.8"/>
     </svg>
   ),
+  /* Help & User Guide / question mark in circle */
+  help: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  ),
   /* Life Cycle Management / timeline with milestones */
   lifecycle: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
@@ -371,17 +379,18 @@ function App() {
   if (page === "retention") return <>{offlineBanner}{warningOverlay}<DataRetentionPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
 
   const cards = [
-    { key: "dashboard", label: "Dashboard",          color: "#e0f2fe" },
-    { key: "facility",  label: "Facility",          color: "#e8f0fb" },
-    { key: "equipment", label: "Equipment",          color: "#eaf7ee" },
-    { key: "product",   label: "Product",            color: "#fef3e2" },
-    { key: "matrix",    label: "Matrix",             color: "#f0ebfb" },
-    { key: "protocol",     label: "Cleaning Validation Protocol & Report", color: "#e8f5e9" },
-    { key: "ccvprotocol", label: "Periodic Cleaning Validation Protocol & Report", color: "#ecfdf5" },
-    { key: "lifecycle",   label: "Life Cycle Management",   color: "#f0ebfb" },
-    { key: "genotoxic",   label: "Genotoxic and Nitrosamine Impurity", color: "#fff0f0" },
-    { key: "audit",     label: "Audit",              color: "#fde8e8" },
-    { key: "query",     label: "Query",              color: "#e2f4fb" },
+    { key: "dashboard",   label: "Dashboard",                                        color: "#e0f2fe" },
+    { key: "facility",    label: "Facility",                                          color: "#e8f0fb" },
+    { key: "equipment",   label: "Equipment",                                         color: "#eaf7ee" },
+    { key: "product",     label: "Product",                                           color: "#fef3e2" },
+    { key: "matrix",      label: "Matrix",                                            color: "#f0ebfb" },
+    { key: "protocol",    label: "Cleaning Validation Protocol & Report",             color: "#e8f5e9" },
+    { key: "ccvprotocol", label: "Periodic Cleaning Validation Protocol & Report",   color: "#ecfdf5" },
+    { key: "lifecycle",   label: "Life Cycle Management",                             color: "#f0ebfb" },
+    { key: "genotoxic",   label: "Genotoxic and Nitrosamine Impurity",               color: "#fff0f0" },
+    { key: "audit",       label: "Audit",                                             color: "#fde8e8" },
+    { key: "query",       label: "Query",                                             color: "#e2f4fb" },
+    { key: "help",        label: "Help & User Guide",                                 color: "#f0fdf4" },
   ];
 
   return (
@@ -397,7 +406,6 @@ function App() {
       <div style={styles.header}>
         <img src={logo} alt="Falcon" style={styles.logo} />
         <span style={styles.headerText}>Cleaning Limit Software</span>
-        <button style={styles.helpBtn} onClick={() => navigate("help")}>? Help</button>
         <button style={styles.logout} onClick={logout}>Logout</button>
       </div>
 
@@ -493,16 +501,6 @@ const styles = {
     margin: 0,
     flex: 1,
     fontSize: "17px"
-  },
-  helpBtn: {
-    padding: "5px 12px",
-    background: "white",
-    color: "#004f9f",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "12px"
   },
   grid: {
     display: "grid",

@@ -1,4 +1,5 @@
 ﻿import React, { useState } from "react";
+import logo from "./assets/falcon-logo.svg";
 
 const tableStyle = { borderCollapse: "collapse", width: "100%", fontSize: 13 };
 const thStyle = { padding: "8px 10px", textAlign: "left", border: "1px solid #ddd" };
@@ -710,8 +711,9 @@ function HelpPage({ goHome }) {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.headerRow}>
-        <h2 style={{ margin: 0 }}>Help &amp; User Guide</h2>
-        <button style={styles.backBtn} onClick={goHome}>Back to Home</button>
+        <img src={logo} alt="Falcon" style={{ width: 44, marginRight: 10 }} />
+        <span style={{ color: "white", fontWeight: "bold", fontSize: 17, flex: 1 }}>Help &amp; User Guide</span>
+        <button style={styles.backBtn} onClick={goHome}>⬅ Back to Home</button>
       </div>
 
       <div style={styles.body}>
@@ -740,29 +742,30 @@ function HelpPage({ goHome }) {
 
 const styles = {
   container: {
-    padding: 20,
-    fontFamily: "Arial",
+    padding: "12px 16px 52px",
+    fontFamily: "'Segoe UI', Arial, sans-serif",
     background: "#f1f5f9",
     minHeight: "100vh",
   },
   headerRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
     background: "#004f9f",
-    padding: "12px 16px",
-    borderRadius: 10,
-    marginBottom: 20,
+    padding: "8px 14px",
+    borderRadius: 8,
+    marginBottom: 14,
+    gap: 10,
   },
   backBtn: {
-    padding: "8px 14px",
+    padding: "5px 12px",
     borderRadius: 6,
     border: "none",
     background: "white",
     color: "#004f9f",
     fontWeight: "bold",
     cursor: "pointer",
-    fontSize: 13,
+    fontSize: 12,
+    flexShrink: 0,
   },
   body: {
     display: "flex",
