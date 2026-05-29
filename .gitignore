@@ -24,6 +24,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code (contains session tokens in allowedTools)
+.claude/
+
 # Secrets
 *.pem
 *.key

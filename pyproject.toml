@@ -1,0 +1,45 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    "backend/venv",
+    "backend/__pycache__",
+    ".git",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (security)
+    "ANN", # flake8-annotations (type hints)
+]
+ignore = [
+    "S101",   # assert statements (used in tests)
+    "B008",   # function calls in default arguments (FastAPI Depends pattern)
+    "ANN",    # skip all annotation rules — add types incrementally
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/migrate_*.py" = ["S", "ANN"]
+"backend/check_*.py"   = ["S", "ANN"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["models", "database"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = false
