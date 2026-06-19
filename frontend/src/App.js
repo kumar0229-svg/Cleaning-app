@@ -507,7 +507,8 @@ const styles = {
     gap: "10px"
   },
   logo: {
-    width: "44px"
+    width: "44px",
+    filter: "brightness(0) invert(1)"
   },
   headerText: {
     color: "white",

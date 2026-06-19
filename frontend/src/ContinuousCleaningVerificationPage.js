@@ -460,7 +460,7 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeade
               Routine post-validation monitoring — one run per report
             </p>
           </div>
-          <img src={logo} alt="Cipla" style={{ height: 40, marginLeft: "auto" }} />
+          <img src={logo} alt="Cipla" style={{ height: 40, marginLeft: "auto", filter: "brightness(0) invert(1)" }} />
         </div>
       )}
 
