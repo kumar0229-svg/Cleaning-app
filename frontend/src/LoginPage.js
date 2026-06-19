@@ -2,6 +2,8 @@
 import logo from "./assets/falcon-logo.svg";
 import api from "./api";
 
+const APP_VERSION = process.env.REACT_APP_VERSION || "0.1.0";
+
 function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -116,6 +118,10 @@ function LoginPage({ onLogin }) {
 
         <p style={styles.footnote}>
           Developed by Kumar
+        </p>
+
+        <p style={styles.version}>
+          Version {APP_VERSION}
         </p>
 
       </div>
@@ -247,6 +253,13 @@ const styles = {
     borderTop: "1px solid #f0f4f8",
     paddingTop: "10px",
     letterSpacing: "0.2px",
+  },
+  version: {
+    margin: "4px 0 0",
+    textAlign: "center",
+    fontSize: "10px",
+    color: "#94a3b8",
+    letterSpacing: "0.3px",
   },
   eyeBtn: {
     position: "absolute",
