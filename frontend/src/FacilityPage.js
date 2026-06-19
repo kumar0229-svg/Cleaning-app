@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 function FacilityPage({ goHome, currentUser }) {
   const [name, setName] = useState("");

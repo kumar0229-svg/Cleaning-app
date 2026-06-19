@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 const apiError = (e, fallback) =>
   e?.response?.data?.detail || e?.message || fallback;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 // Safely extract a string from any FastAPI error shape (string, Pydantic array, or object)
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {

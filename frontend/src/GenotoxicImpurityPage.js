@@ -1,5 +1,5 @@
 import React from "react";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 function GenotoxicImpurityPage({ goHome, currentUser, role }) {
   return (

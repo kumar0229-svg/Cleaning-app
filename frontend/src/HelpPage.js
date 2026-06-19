@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 const tableStyle = { borderCollapse: "collapse", width: "100%", fontSize: 13 };
 const thStyle = { padding: "8px 10px", textAlign: "left", border: "1px solid #ddd" };

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 import api from "./api";
 
 const RULES = [

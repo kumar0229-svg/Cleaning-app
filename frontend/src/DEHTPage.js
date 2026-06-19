@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {
   const detail = e?.response?.data?.detail;

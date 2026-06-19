@@ -16,7 +16,7 @@ import DashboardPage from "./DashboardPage";
 import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import DataRetentionPage from "./DataRetentionPage";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 import Footer from "./Footer";
 
 const icons = {

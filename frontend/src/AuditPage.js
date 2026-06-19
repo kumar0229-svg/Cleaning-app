@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.svg";
+import logo from "./assets/cipla-logo.png";
 import Pagination from "./Pagination";
 import { exportCsv } from "./exportCsv";
 
