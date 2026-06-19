@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {
   const detail = e?.response?.data?.detail;
@@ -681,7 +681,7 @@ img{max-width:70pt;max-height:26pt}p{margin:0 0 5pt}
 .sig-grid-print{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:20pt!important;padding:10pt 0!important;margin-top:10pt!important;break-inside:avoid}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Falcon"/>
+  <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
     <p class="rh-title">Dirty Equipment Hold Time (DEHT) Study Protocol</p>
     <p class="rh-sub">Cleaning Validation — DEHT Protocol</p>
@@ -739,7 +739,7 @@ tr:nth-child(even) td{background:#f5f8fc!important}
 img{max-width:70pt;max-height:24pt}p{margin:0 0 5pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Falcon"/>
+  <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
     <p class="rh-title">Dirty Equipment Hold Time (DEHT) Study Report</p>
     <p class="rh-sub">DEHT Report — ${product_name}</p>
@@ -815,7 +815,7 @@ ${reportPrintRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Falcon" style={{ width: 70 }} />
+          <img src={logo} alt="Cipla" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
@@ -1407,7 +1407,7 @@ ${reportPrintRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Falcon" style={{ width: 70 }} />
+          <img src={logo} alt="Cipla" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import LoginPage from "./LoginPage";
 import ForceChangePasswordPage from "./ForceChangePasswordPage";
 import PolicyPage from "./PolicyPage";
@@ -16,7 +16,7 @@ import DashboardPage from "./DashboardPage";
 import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import DataRetentionPage from "./DataRetentionPage";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 import Footer from "./Footer";
 
 const icons = {
@@ -204,6 +204,8 @@ const INACTIVITY_MS  = 10 * 60 * 1000;
 const WARNING_MS     = 60 * 1000;
 const HEALTH_POLL_MS = 30 * 1000;
 
+const PWD_EXPIRY_WARNING_DAYS = 7;
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState("");
@@ -212,6 +214,7 @@ function App() {
   const [page, setPage] = useState("home");
   const [showWarning, setShowWarning] = useState(false);
   const [serverOnline, setServerOnline] = useState(true);
+  const [pwdExpiresInDays, setPwdExpiresInDays] = useState(null);
   const failCount = useRef(0);
 
   const logoutTimer = useRef(null);
@@ -231,6 +234,7 @@ function App() {
     setForceReset(false);
     setPage("home");
     setShowWarning(false);
+    setPwdExpiresInDays(null);
     window.history.replaceState({ page: "home" }, "", "/");
   }, []);
 
@@ -321,10 +325,11 @@ function App() {
     return (
       <>
         {offlineBanner}
-        <LoginPage onLogin={(username, userRole, mustReset) => {
+        <LoginPage onLogin={(username, userRole, mustReset, expiresInDays) => {
           setUser((username || "").trim());
           setRole((userRole || "").trim());
           setForceReset(!!mustReset);
+          setPwdExpiresInDays(expiresInDays ?? null);
           setLoggedIn(true);
           setPage("home");
           window.history.replaceState({ page: "home" }, "", "/");
@@ -402,9 +407,17 @@ function App() {
       {/* Inactivity warning */}
       {warningOverlay}
 
+      {/* Password expiry warning */}
+      {pwdExpiresInDays !== null && pwdExpiresInDays <= PWD_EXPIRY_WARNING_DAYS && (
+        <div style={styles.expiryBanner}>
+          Your password expires in <strong>{pwdExpiresInDays} day{pwdExpiresInDays !== 1 ? "s" : ""}</strong>.
+          Please change it soon to avoid being locked out.
+        </div>
+      )}
+
       {/* HEADER */}
       <div style={styles.header}>
-        <img src={logo} alt="Falcon" style={styles.logo} />
+        <img src={logo} alt="Cipla" style={styles.logo} />
         <span style={styles.headerText}>Cleaning Limit Software</span>
         <button style={styles.logout} onClick={logout}>Logout</button>
       </div>
@@ -584,6 +597,14 @@ const styles = {
     fontSize: "14px",
     zIndex: 99999,
     letterSpacing: "0.2px"
+  },
+  expiryBanner: {
+    background: "#fff3cd",
+    color: "#856404",
+    borderBottom: "1px solid #ffc107",
+    textAlign: "center",
+    padding: "8px 16px",
+    fontSize: "13px",
   }
 };
 

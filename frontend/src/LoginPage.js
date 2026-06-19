@@ -1,5 +1,5 @@
-﻿import React, { useState } from "react";
-import logo from "./assets/falcon-logo.svg";
+import React, { useState } from "react";
+import logo from "./assets/cipla-logo.svg";
 import api from "./api";
 
 const APP_VERSION = process.env.REACT_APP_VERSION || "0.1.0";
@@ -36,17 +36,22 @@ function LoginPage({ onLogin }) {
     }
   };
 
+  const [loginError, setLoginError] = useState("");
+
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      alert("Enter username and password ❌");
+      setLoginError("Enter username and password ❌");
       return;
     }
+    setLoginError("");
     try {
       const res = await api.post("/login", { username, password });
       localStorage.setItem("auth_token", res.data.token);
-      onLogin(username, res.data.role, res.data.force_password_reset);
+      onLogin(username, res.data.role, res.data.force_password_reset, res.data.password_expires_in_days);
     } catch (err) {
-      alert(err.response?.data?.detail || "Login failed ❌");
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || "Login failed ❌";
+      setLoginError(status === 423 ? "🔒 " + detail : detail);
     }
   };
 
@@ -54,7 +59,7 @@ function LoginPage({ onLogin }) {
     <div style={styles.container}>
       <div style={styles.card}>
 
-        <img src={logo} alt="Falcon" style={styles.logo} />
+        <img src={logo} alt="Cipla" style={styles.logo} />
 
         <h2 style={styles.title}>
           Cleaning Limit Software
@@ -105,6 +110,12 @@ function LoginPage({ onLogin }) {
           </button>
           </div>
         </div>
+
+        {loginError && (
+          <p style={{ color: "#dc3545", fontSize: "13px", margin: "8px 0 0", textAlign: "center" }}>
+            {loginError}
+          </p>
+        )}
 
         <button style={styles.button} onClick={handleLogin}>
           Login

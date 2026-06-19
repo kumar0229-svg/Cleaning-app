@@ -1,5 +1,5 @@
-﻿import React, { useState } from "react";
-import logo from "./assets/falcon-logo.svg";
+import React, { useState } from "react";
+import logo from "./assets/cipla-logo.svg";
 
 const tableStyle = { borderCollapse: "collapse", width: "100%", fontSize: 13 };
 const thStyle = { padding: "8px 10px", textAlign: "left", border: "1px solid #ddd" };
@@ -711,7 +711,7 @@ function HelpPage({ goHome }) {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.headerRow}>
-        <img src={logo} alt="Falcon" style={{ width: 44, marginRight: 10 }} />
+        <img src={logo} alt="Cipla" style={{ width: 44, marginRight: 10 }} />
         <span style={{ color: "white", fontWeight: "bold", fontSize: 17, flex: 1 }}>Help &amp; User Guide</span>
         <button style={styles.backBtn} onClick={goHome}>⬅ Back to Home</button>
       </div>

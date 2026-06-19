@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import api from "./api";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 import Pagination from "./Pagination";
 
 const PAGE_SIZE = 20;
@@ -249,7 +249,7 @@ function EquipmentPage({ goHome, currentUser }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Falcon" />
+          <img src="${logo}" alt="Cipla" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>Equipment Master Report</p>

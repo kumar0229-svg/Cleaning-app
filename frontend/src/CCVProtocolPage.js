@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 
 // Safely extract a string from any FastAPI error shape (string, Pydantic array, or object)
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {
@@ -505,7 +505,7 @@ div{overflow:visible!important;max-width:100%}
 .fail-badge{background:#f8d7da!important;color:#721c24!important;font-weight:bold;padding:1pt 4pt;border-radius:2pt;font-size:7pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Falcon"/>
+  <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
     <p class="rh-title">PCV Validation Report</p>
     <p class="rh-sub">Archived Report — ${product_name}</p>
@@ -703,7 +703,7 @@ div{overflow:visible!important;max-width:100%}
 .sample-num{font-family:'Courier New',monospace;font-weight:bold;color:#004f9f;font-size:8.5pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Falcon"/>
+  <img src="${logoDataUrl}" alt="Cipla"/>
   <div class="rh-center">
     <p class="rh-title">Periodic Cleaning Verification Protocol</p>
     <p class="rh-sub">Cleaning Limit Calculation — MACO Methodology</p>
@@ -765,7 +765,7 @@ ${printRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Falcon" style={{ width: 70 }} />
+          <img src={logo} alt="Cipla" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
@@ -1378,7 +1378,7 @@ ${printRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Falcon" style={{ width: 70 }} />
+          <img src={logo} alt="Cipla" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>

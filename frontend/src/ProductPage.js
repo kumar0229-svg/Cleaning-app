@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 
 // ─── WHO ATC Classification (Level 1) ─────────────────────────────────────────
 const ATC_DEFAULT = [
@@ -1036,7 +1036,7 @@ function ProductPage({ goHome, currentUser }) {
       tr:nth-child(even){background:#f8fafc;}
       .footer{margin-top:30px;border-top:1px solid #ccc;padding-top:10px;display:flex;justify-content:space-between;color:#888;font-size:11px;}
       </style></head><body>
-      <div class="header"><img src="${logo}" alt="Falcon" />
+      <div class="header"><img src="${logo}" alt="Cipla" />
         <div class="header-text"><h2>Cleaning Limit Software</h2>
           <p>Product Master Report</p><p>Generated: ${new Date().toLocaleString("en-IN")}</p></div></div>
       ${printRef.current.innerHTML}

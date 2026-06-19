@@ -1,19 +1,45 @@
-﻿import React, { useState } from "react";
-import logo from "./assets/falcon-logo.svg";
+import React, { useState } from "react";
+import logo from "./assets/cipla-logo.svg";
 import api from "./api";
 
+const RULES = [
+  { key: "len",     label: "At least 8 characters",          test: p => p.length >= 8 },
+  { key: "upper",   label: "At least one uppercase letter",  test: p => /[A-Z]/.test(p) },
+  { key: "lower",   label: "At least one lowercase letter",  test: p => /[a-z]/.test(p) },
+  { key: "digit",   label: "At least one digit",             test: p => /\d/.test(p) },
+  { key: "special", label: "At least one special character", test: p => /[!@#$%^&*()\-_=+\[\]{};':"\\|,.<>/?`~]/.test(p) },
+];
+
+function PasswordRules({ password }) {
+  if (!password) return null;
+  return (
+    <ul style={styles.ruleList}>
+      {RULES.map(r => {
+        const met = r.test(password);
+        return (
+          <li key={r.key} style={{ ...styles.ruleItem, color: met ? "#198754" : "#dc3545" }}>
+            {met ? "✓" : "✗"} {r.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
-  const [newPassword, setNewPassword]     = useState("");
+  const [newPassword, setNewPassword]         = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showNew, setShowNew]             = useState(false);
-  const [showConfirm, setShowConfirm]     = useState(false);
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState("");
+  const [showNew, setShowNew]                 = useState(false);
+  const [showConfirm, setShowConfirm]         = useState(false);
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState("");
+
+  const allRulesMet = RULES.every(r => r.test(newPassword));
 
   const handleSubmit = async () => {
     setError("");
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (!allRulesMet) {
+      setError("Password does not meet all complexity requirements.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -22,9 +48,7 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
     }
     setLoading(true);
     try {
-      await api.post("/users/change-password", {
-        new_password: newPassword,
-      });
+      await api.post("/users/change-password", { new_password: newPassword });
       onPasswordChanged();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to change password. Please try again.");
@@ -36,7 +60,7 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <img src={logo} alt="Falcon" style={styles.logo} />
+        <img src={logo} alt="Cipla" style={styles.logo} />
         <h2 style={styles.title}>Set New Password</h2>
         <p style={styles.subtitle}>
           Welcome, <strong>{currentUser}</strong>. You must set a new password before continuing.
@@ -45,7 +69,7 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
         <div style={{ position: "relative", marginTop: "12px" }}>
           <input
             type={showNew ? "text" : "password"}
-            placeholder="New Password (min 6 characters)"
+            placeholder="New Password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             style={{ ...styles.input, paddingRight: "42px" }}
@@ -55,7 +79,9 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
           </button>
         </div>
 
-        <div style={{ position: "relative", marginTop: "4px" }}>
+        <PasswordRules password={newPassword} />
+
+        <div style={{ position: "relative", marginTop: "8px" }}>
           <input
             type={showConfirm ? "text" : "password"}
             placeholder="Confirm New Password"
@@ -123,6 +149,16 @@ const styles = {
     border: "none",
     cursor: "pointer",
     fontSize: "16px",
+  },
+  ruleList: {
+    textAlign: "left",
+    margin: "8px 0 0",
+    padding: "0 0 0 4px",
+    listStyle: "none",
+    fontSize: "12px",
+  },
+  ruleItem: {
+    marginBottom: "2px",
   },
   error: { color: "#dc3545", fontSize: "13px", margin: "8px 0 0" },
   btn: {

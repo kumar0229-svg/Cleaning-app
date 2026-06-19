@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/falcon-logo.svg";
+import logo from "./assets/cipla-logo.svg";
 import { exportCsv } from "./exportCsv";
 
 function MatrixPage({ goHome, currentUser, role }) {
@@ -304,7 +304,7 @@ function MatrixPage({ goHome, currentUser, role }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Falcon" />
+          <img src="${logo}" alt="Cipla" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>MACO Cleaning Limit Matrix Report</p>
@@ -350,7 +350,7 @@ function MatrixPage({ goHome, currentUser, role }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Falcon" />
+          <img src="${logo}" alt="Cipla" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>Cleaning Limit Summary Report</p>
