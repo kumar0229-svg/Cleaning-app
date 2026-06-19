@@ -18,6 +18,7 @@ import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import DataRetentionPage from "./DataRetentionPage";
 import logo from "./assets/cipla-logo.png";
 import Footer from "./Footer";
+import api from "./api";
 
 const icons = {
   /* Dashboard / bar chart */
@@ -200,9 +201,10 @@ const icons = {
   ),
 };
 
-const INACTIVITY_MS  = 10 * 60 * 1000;
-const WARNING_MS     = 60 * 1000;
-const HEALTH_POLL_MS = 30 * 1000;
+const INACTIVITY_MS    = 10 * 60 * 1000;
+const WARNING_MS       = 60 * 1000;
+const HEALTH_POLL_MS   = 30 * 1000;
+const SESSION_PING_MS  =  5 * 1000;   // check session validity every 5 s for near-instant kick-out
 
 const PWD_EXPIRY_WARNING_DAYS = 7;
 
@@ -226,7 +228,8 @@ function App() {
     window.history.pushState({ page: newPage }, "", url);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try { await api.post("/logout"); } catch {}  // clear server-side session_token before UI resets
     localStorage.removeItem("auth_token");
     setLoggedIn(false);
     setUser("");
@@ -236,6 +239,25 @@ function App() {
     setShowWarning(false);
     setPwdExpiresInDays(null);
     window.history.replaceState({ page: "home" }, "", "/");
+  }, []);
+
+  // Listen for the auth:force-logout event fired by api.js interceptor when the
+  // server returns SESSION_INVALIDATED or an unexpected 401. Using React state
+  // (setLoggedIn) instead of window.location.reload() means the beforeunload
+  // listener is removed before the login page mounts — no browser dialog.
+  useEffect(() => {
+    const handleForceLogout = () => {
+      setLoggedIn(false);
+      setUser("");
+      setRole("");
+      setForceReset(false);
+      setPage("home");
+      setShowWarning(false);
+      setPwdExpiresInDays(null);
+      window.history.replaceState({ page: "home" }, "", "/");
+    };
+    window.addEventListener("auth:force-logout", handleForceLogout);
+    return () => window.removeEventListener("auth:force-logout", handleForceLogout);
   }, []);
 
   const resetTimers = useCallback(() => {
@@ -269,6 +291,16 @@ function App() {
     const id = setInterval(check, HEALTH_POLL_MS);
     return () => clearInterval(id);
   }, []);
+
+  // Session-validity poll — uses authenticated api client so the response interceptor
+  // in api.js automatically handles SESSION_INVALIDATED (401) → clears token → reloads.
+  useEffect(() => {
+    if (!loggedIn) return;
+    const id = setInterval(() => {
+      api.get("/session/ping").catch(() => {});
+    }, SESSION_PING_MS);
+    return () => clearInterval(id);
+  }, [loggedIn]);
 
   useEffect(() => {
     if (!loggedIn) {

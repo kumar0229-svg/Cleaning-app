@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import logo from "./assets/cipla-logo.png";
 import api from "./api";
 
@@ -36,23 +36,51 @@ function LoginPage({ onLogin }) {
     }
   };
 
-  const [loginError, setLoginError] = useState("");
+  const [loginError, setLoginError]         = useState("");
+  const [sessionNotice, setSessionNotice]   = useState("");
+  const [showSessionWarn, setShowSessionWarn] = useState(false);
+  const [loginLoading, setLoginLoading]     = useState(false);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      setLoginError("Enter username and password ❌");
-      return;
+  useEffect(() => {
+    const notice = sessionStorage.getItem("login_notice");
+    if (notice === "duplicate_session") {
+      setSessionNotice("You were signed out because your account was accessed from another session.");
+      sessionStorage.removeItem("login_notice");
     }
+  }, []);
+
+  const doLogin = async (force = false) => {
     setLoginError("");
+    setLoginLoading(true);
     try {
-      const res = await api.post("/login", { username, password });
+      const res = await api.post("/login", { username, password, force });
       localStorage.setItem("auth_token", res.data.token);
       onLogin(username, res.data.role, res.data.force_password_reset, res.data.password_expires_in_days);
     } catch (err) {
       const status = err.response?.status;
-      const detail = err.response?.data?.detail || "Login failed ❌";
-      setLoginError(status === 423 ? "🔒 " + detail : detail);
+      const rawDetail = err.response?.data?.detail;
+      const detail = rawDetail || "Login failed ❌";
+      if (status === 409 || rawDetail === "ACTIVE_SESSION") {
+        setShowSessionWarn(true);
+      } else {
+        setLoginError(status === 423 ? "🔒 " + detail : detail);
+      }
+    } finally {
+      setLoginLoading(false);
     }
+  };
+
+  const handleLogin = () => {
+    if (!username.trim() || !password.trim()) {
+      setLoginError("Enter username and password ❌");
+      return;
+    }
+    doLogin(false);
+  };
+
+  const handleForceLogin = () => {
+    setShowSessionWarn(false);
+    doLogin(true);
   };
 
   return (
@@ -64,6 +92,12 @@ function LoginPage({ onLogin }) {
         <h2 style={styles.title}>
           Cleaning Limit Software
         </h2>
+
+        {sessionNotice && (
+          <div style={styles.sessionNotice}>
+            🔒 {sessionNotice}
+          </div>
+        )}
 
         <div style={styles.fieldRow}>
           <label style={styles.label}>Username</label>
@@ -117,8 +151,9 @@ function LoginPage({ onLogin }) {
           </p>
         )}
 
-        <button style={styles.button} onClick={handleLogin}>
-          Login
+        <button style={{ ...styles.button, opacity: loginLoading ? 0.7 : 1 }}
+          onClick={handleLogin} disabled={loginLoading}>
+          {loginLoading ? "Signing in..." : "Login"}
         </button>
 
         <p style={{ margin: "10px 0 0", textAlign: "center" }}>
@@ -186,6 +221,45 @@ function LoginPage({ onLogin }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Active session warning modal */}
+      {showSessionWarn && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalBox, textAlign: "center" }}>
+            <div style={{ fontSize: "40px", marginBottom: "10px" }}>⚠️</div>
+            <h3 style={{ margin: "0 0 10px", color: "#856404", fontSize: "16px" }}>
+              Active Session Detected
+            </h3>
+            <p style={{ margin: "0 0 6px", fontSize: "13px", color: "#555", lineHeight: "1.6" }}>
+              Your account is currently signed in on another browser or device.
+            </p>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#555", lineHeight: "1.6" }}>
+              Continuing will <strong>immediately sign out the other session</strong>.
+              Any unsaved work there will be lost.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={handleForceLogin}
+                disabled={loginLoading}
+                style={{ flex: 1, padding: "10px", background: "#dc3545", color: "white",
+                  border: "none", borderRadius: "6px", cursor: "pointer",
+                  fontWeight: "bold", fontSize: "13px",
+                  opacity: loginLoading ? 0.7 : 1 }}
+              >
+                {loginLoading ? "Signing in..." : "Continue & Sign Out Other Session"}
+              </button>
+              <button
+                onClick={() => setShowSessionWarn(false)}
+                style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#333",
+                  border: "1px solid #ccc", borderRadius: "6px", cursor: "pointer",
+                  fontWeight: "bold", fontSize: "13px" }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -322,6 +396,17 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
     fontSize: "14px",
+  },
+  sessionNotice: {
+    background: "#fff3cd",
+    border: "1px solid #ffc107",
+    borderRadius: "6px",
+    padding: "10px 12px",
+    fontSize: "12px",
+    color: "#856404",
+    marginBottom: "12px",
+    textAlign: "left",
+    lineHeight: "1.5",
   },
 };
 

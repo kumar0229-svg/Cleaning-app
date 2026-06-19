@@ -47,6 +47,21 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_H  = 8
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
+def _make_session_token() -> str:
+    """Return  '<uuid>_<unix-expiry>'  so the token carries its own TTL.
+    No extra DB column needed — expiry is parsed directly from the value.
+    """
+    expiry = int((datetime.datetime.utcnow() + datetime.timedelta(hours=JWT_EXPIRE_H)).timestamp())
+    return f"{uuid.uuid4()}_{expiry}"
+
+def _session_token_expired(token: str) -> bool:
+    """True when the token is provably dead (expired or old UUID-only format)."""
+    try:
+        expiry = int(token.rsplit("_", 1)[1])
+        return datetime.datetime.utcnow().timestamp() > expiry
+    except (IndexError, ValueError):
+        return True   # old plain-UUID format → treat as stale
+
 def hash_password(plain: str) -> str:
     return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt()).decode()
 
@@ -55,6 +70,26 @@ def verify_password(plain: str, hashed: str) -> bool:
         return _bcrypt.checkpw(plain.encode(), hashed.encode())
     except Exception:
         return False
+
+import re as _re
+
+def validate_password_complexity(password: str) -> None:
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not _re.search(r"[A-Z]", password):
+        errors.append("at least one uppercase letter")
+    if not _re.search(r"[a-z]", password):
+        errors.append("at least one lowercase letter")
+    if not _re.search(r"\d", password):
+        errors.append("at least one digit")
+    if not _re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?`~]", password):
+        errors.append("at least one special character (!@#$%^&* etc.)")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain: " + ", ".join(errors) + "."
+        )
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL    = os.environ.get("OLLAMA_MODEL", "llama3.2")
@@ -188,6 +223,9 @@ def startup():
         "ALTER TABLE users ADD COLUMN archived_by TEXT",
         "ALTER TABLE users ADD COLUMN archived_at TEXT",
         "ALTER TABLE users ADD COLUMN force_password_reset INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN password_changed_at TEXT",
+        "ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN locked_until TEXT",
         "ALTER TABLE equipment ADD COLUMN category_id INTEGER",
         "ALTER TABLE products ADD COLUMN product_category TEXT",
         "ALTER TABLE products ADD COLUMN product_attribute TEXT",
@@ -242,6 +280,10 @@ def startup():
         ("product_synthesis_steps", "analytical_method", "TEXT"),
         ("product_synthesis_steps", "lod_ppm",           "FLOAT"),
         ("product_synthesis_steps", "loq_ppm",           "FLOAT"),
+        ("users", "password_changed_at", "TEXT"),
+        ("users", "failed_attempts",     "INTEGER DEFAULT 0"),
+        ("users", "locked_until",        "TEXT"),
+        ("users", "session_token",       "TEXT"),
     ]
     with engine.connect() as conn:
         for table, col, col_def in _new_columns:
@@ -260,6 +302,22 @@ def startup():
         for u in db.query(User).all():
             if u.password and not u.password.startswith("$2"):
                 u.password = hash_password(u.password)
+        db.commit()
+    finally:
+        db.close()
+
+    # Seed security policy defaults
+    _security_defaults = {
+        "password_expiry_days":   "45",
+        "max_login_attempts":     "5",
+        "lockout_duration_hours": "8",
+    }
+    db = SessionLocal()
+    try:
+        for _k, _v in _security_defaults.items():
+            if not db.query(SystemConfig).filter(SystemConfig.config_key == _k).first():
+                db.add(SystemConfig(config_key=_k, config_value=_v,
+                                    updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
         db.commit()
     finally:
         db.close()
@@ -354,6 +412,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.username == username).first()
     if not user or user.is_archived:
         raise HTTPException(status_code=401, detail="User not found or account disabled")
+    # Single-session check: token's session_token must match the one stored on the user
+    token_session = payload.get("session_token")
+    if token_session and user.session_token and token_session != user.session_token:
+        raise HTTPException(status_code=401, detail="SESSION_INVALIDATED")
     return user
 
 # ===================================================
@@ -2130,6 +2192,8 @@ def add_user(
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
 
+    validate_password_complexity(req.password)
+
     new_user = User(
         username=req.username,
         password=hash_password(req.password),
@@ -2151,9 +2215,26 @@ def get_users(
     current_user: User = Depends(get_current_user)
 ):
     check_role(current_user.role, ROLES_CAN_MANAGE_USERS)
-    return db.query(User).filter(
+    now = datetime.datetime.utcnow()
+    users = db.query(User).filter(
         (User.is_archived == False) | (User.is_archived == None)
     ).all()
+    result = []
+    for u in users:
+        is_locked = bool(
+            u.locked_until and
+            now < datetime.datetime.fromisoformat(u.locked_until)
+        )
+        result.append({
+            "user_id":            u.user_id,
+            "username":           u.username,
+            "role":               u.role,
+            "failed_attempts":    u.failed_attempts or 0,
+            "is_locked":          is_locked,
+            "locked_until":       u.locked_until if is_locked else None,
+            "password_changed_at": u.password_changed_at,
+        })
+    return result
 
 @app.get("/users/archived")
 def get_archived_users(
@@ -2218,6 +2299,8 @@ def reset_user_password(
     if not verify_password(req.admin_password, current_user.password):
         raise HTTPException(status_code=401, detail="Incorrect admin password ❌")
 
+    validate_password_complexity(req.new_password)
+
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -2250,11 +2333,11 @@ def change_own_password(
         if not req.current_password or not verify_password(req.current_password, current_user.password):
             raise HTTPException(status_code=401, detail="Current password is incorrect ❌")
 
-    if len(req.new_password) < 6:
-        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    validate_password_complexity(req.new_password)
 
     current_user.password = hash_password(req.new_password)
     current_user.force_password_reset = False
+    current_user.password_changed_at = datetime.datetime.utcnow().isoformat()
     db.commit()
 
     log_audit(db, "CHANGE_PASSWORD", "USER", current_user.user_id,
@@ -2262,6 +2345,87 @@ def change_own_password(
     logger.info(f"User {current_user.username} changed their password")
 
     return {"message": "Password changed successfully ✅"}
+
+# ===================================================
+# ===================================================
+# SESSION PING — lightweight endpoint for session-validity polling
+# ===================================================
+@app.get("/session/ping")
+def session_ping(current_user: User = Depends(get_current_user)):
+    return {"ok": True}
+
+# ===================================================
+# SECURITY POLICY (password aging & lockout config)
+# ===================================================
+_SECURITY_KEYS = {"password_expiry_days", "max_login_attempts", "lockout_duration_hours"}
+
+@app.get("/admin/security-policy")
+def get_security_policy(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    rows = db.query(SystemConfig).filter(SystemConfig.config_key.in_(_SECURITY_KEYS)).all()
+    return {r.config_key: r.config_value for r in rows}
+
+class SecurityPolicyRequest(BaseModel):
+    password_expiry_days:   int
+    max_login_attempts:     int
+    lockout_duration_hours: int
+
+@app.post("/admin/security-policy")
+def update_security_policy(
+    req: SecurityPolicyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    if req.password_expiry_days < 1:
+        raise HTTPException(status_code=400, detail="password_expiry_days must be ≥ 1")
+    if req.max_login_attempts < 1:
+        raise HTTPException(status_code=400, detail="max_login_attempts must be ≥ 1")
+    if req.lockout_duration_hours < 1:
+        raise HTTPException(status_code=400, detail="lockout_duration_hours must be ≥ 1")
+
+    updates = {
+        "password_expiry_days":   str(req.password_expiry_days),
+        "max_login_attempts":     str(req.max_login_attempts),
+        "lockout_duration_hours": str(req.lockout_duration_hours),
+    }
+    now = datetime.datetime.utcnow().isoformat()
+    for key, val in updates.items():
+        row = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
+        if row:
+            row.config_value = val
+            row.updated_by = current_user.username
+            row.updated_at = now
+        else:
+            db.add(SystemConfig(config_key=key, config_value=val,
+                                updated_by=current_user.username, updated_at=now))
+    db.commit()
+    log_audit(db, "UPDATE", "SYSTEM_CONFIG", "security_policy",
+              "security_policy", "", str(updates), current_user.username)
+    return {"message": "Security policy updated ✅"}
+
+# ===================================================
+# UNLOCK USER (admin clears lockout)
+# ===================================================
+@app.post("/users/unlock/{username}")
+def unlock_user(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.commit()
+    log_audit(db, "UPDATE", "USER", user.user_id,
+              "locked_until", user.locked_until or "", "", current_user.username)
+    return {"message": f"User '{username}' unlocked ✅"}
 
 # ===================================================
 # FORGOT PASSWORD — user submits a reset request
@@ -2350,8 +2514,7 @@ def approve_reset_request(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if len(req.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    validate_password_complexity(req.new_password)
 
     user.password = hash_password(req.new_password)
     user.force_password_reset = True
@@ -2435,10 +2598,31 @@ def archive_user(
 class LoginRequest(BaseModel):
     username: str
     password: str
+    force:    bool = False   # True = override an existing active session
 
 @app.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
+    def _get_cfg(key, default):
+        row = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
+        try: return int(row.config_value) if row else default
+        except (ValueError, TypeError): return default
+
     user = db.query(User).filter(User.username == req.username).first()
+
+    # Account lockout check (before password verification to avoid enumeration timing)
+    if user and not user.is_archived and user.locked_until:
+        locked_dt = datetime.datetime.fromisoformat(user.locked_until)
+        if datetime.datetime.utcnow() < locked_dt:
+            remaining = int((locked_dt - datetime.datetime.utcnow()).total_seconds() / 60)
+            raise HTTPException(
+                status_code=423,
+                detail=f"Account locked. Try again in {remaining} minute(s)."
+            )
+        else:
+            # Lock expired — clear it
+            user.failed_attempts = 0
+            user.locked_until = None
+            db.commit()
 
     valid = (
         user is not None and
@@ -2446,6 +2630,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         user.password is not None and
         verify_password(req.password, user.password)
     )
+
     if not valid:
         logger.warning(f"Failed login attempt for username: {req.username}")
         try:
@@ -2453,26 +2638,77 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
                       "login", "", "failed", req.username)
         except Exception:
             pass
+        # Increment failed attempts and lock if threshold reached
+        if user and not user.is_archived:
+            max_attempts = _get_cfg("max_login_attempts", 5)
+            user.failed_attempts = (user.failed_attempts or 0) + 1
+            if user.failed_attempts >= max_attempts:
+                lockout_hours = _get_cfg("lockout_duration_hours", 8)
+                user.locked_until = (
+                    datetime.datetime.utcnow() + datetime.timedelta(hours=lockout_hours)
+                ).isoformat()
+                db.commit()
+                raise HTTPException(
+                    status_code=423,
+                    detail=f"Too many failed attempts. Account locked for {lockout_hours} hour(s)."
+                )
+            db.commit()
         raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Active session check — warn before displacing another session.
+    # _session_token_expired() reads the expiry timestamp embedded in the token string
+    # so no extra DB column is needed. Old plain-UUID tokens are treated as stale.
+    if user.session_token and not _session_token_expired(user.session_token):
+        if not req.force:
+            raise HTTPException(status_code=409, detail="ACTIVE_SESSION")
+    # (if expired or absent, fall through and issue a fresh token)
+
+    # Successful login — reset failure counters and rotate session token
+    user.failed_attempts = 0
+    user.locked_until = None
+    new_session_token = _make_session_token()
+    user.session_token = new_session_token
+
+    # Password expiry check
+    expiry_days = _get_cfg("password_expiry_days", 45)
+    password_expires_in_days = None
+    if user.password_changed_at and not user.force_password_reset:
+        changed_dt = datetime.datetime.fromisoformat(user.password_changed_at)
+        age_days = (datetime.datetime.utcnow() - changed_dt).days
+        if age_days >= expiry_days:
+            user.force_password_reset = True
+        else:
+            password_expires_in_days = expiry_days - age_days
+
+    db.commit()
 
     logger.info(f"Login: {user.username} ({user.role})")
     log_audit(db, "LOGIN", "USER", user.user_id,
               "login", "", "success", user.username)
 
     token_data = {
-        "sub":  user.username,
-        "role": user.role,
-        "exp":  datetime.datetime.utcnow() + datetime.timedelta(hours=JWT_EXPIRE_H),
+        "sub":           user.username,
+        "role":          user.role,
+        "session_token": new_session_token,
+        "exp":           datetime.datetime.utcnow() + datetime.timedelta(hours=JWT_EXPIRE_H),
     }
     token = jwt.encode(token_data, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
     return {
-        "message":              "Login successful",
-        "token":                token,
-        "username":             user.username,
-        "role":                 user.role,
-        "force_password_reset": bool(user.force_password_reset),
+        "message":                "Login successful",
+        "token":                  token,
+        "username":               user.username,
+        "role":                   user.role,
+        "force_password_reset":   bool(user.force_password_reset),
+        "password_expires_in_days": password_expires_in_days,
     }
+
+@app.post("/logout")
+def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    current_user.session_token = None
+    db.commit()
+    return {"message": "Logged out"}
+
 # ===================================================
 # UPDATE EQUIPMENT
 # ===================================================

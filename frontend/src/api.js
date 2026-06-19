@@ -23,7 +23,12 @@ api.interceptors.response.use(
       const isWrongPassword = typeof detail === "string" && detail.includes("Incorrect password");
       if (!isWrongPassword) {
         localStorage.removeItem("auth_token");
-        window.location.reload();
+        if (detail === "SESSION_INVALIDATED") {
+          sessionStorage.setItem("login_notice", "duplicate_session");
+        }
+        // Dispatch instead of reload — React removes the beforeunload listener
+        // before re-rendering the login page, avoiding the browser dialog.
+        window.dispatchEvent(new CustomEvent("auth:force-logout"));
       }
     }
     return Promise.reject(error);

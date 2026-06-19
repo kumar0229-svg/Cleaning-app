@@ -175,6 +175,46 @@ function UserManagementPage({ goHome, currentUser }) {
   const [resetAdminPwd, setResetAdminPwd]     = useState("");
   const [resetLoading, setResetLoading]       = useState(false);
 
+  // Security policy
+  const [secPolicy, setSecPolicy]   = useState(null);
+  const [secEdit, setSecEdit]       = useState(false);
+  const [secForm, setSecForm]       = useState({ password_expiry_days: 45, max_login_attempts: 5, lockout_duration_hours: 8 });
+  const [secLoading, setSecLoading] = useState(false);
+
+  const loadSecPolicy = async () => {
+    try {
+      const res = await api.get("/admin/security-policy");
+      setSecPolicy(res.data);
+      setSecForm({
+        password_expiry_days:   parseInt(res.data.password_expiry_days)   || 45,
+        max_login_attempts:     parseInt(res.data.max_login_attempts)     || 5,
+        lockout_duration_hours: parseInt(res.data.lockout_duration_hours) || 8,
+      });
+    } catch { /* non-admin roles get 403 — silently ignore */ }
+  };
+
+  const saveSecPolicy = async () => {
+    setSecLoading(true);
+    try {
+      await api.post("/admin/security-policy", secForm);
+      await loadSecPolicy();
+      setSecEdit(false);
+      alert("Security policy saved ✅");
+    } catch (err) {
+      alert(err.response?.data?.detail || "Save failed ❌");
+    } finally { setSecLoading(false); }
+  };
+
+  const unlockUser = async (uname) => {
+    try {
+      await api.post(`/users/unlock/${uname}`);
+      alert(`User "${uname}" unlocked ✅`);
+      loadUsers();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Unlock failed ❌");
+    }
+  };
+
   // Forgot-password requests
   const [resetRequests, setResetRequests]         = useState([]);
   const [resetReqLoading, setResetReqLoading]     = useState(false);
@@ -240,7 +280,7 @@ function UserManagementPage({ goHome, currentUser }) {
     }
   };
 
-  useEffect(() => { loadUsers(); loadResetRequests(); }, []);
+  useEffect(() => { loadUsers(); loadResetRequests(); loadSecPolicy(); }, []);
 
   const addUser = () => {
     if (!username.trim() || !password.trim()) {
@@ -368,6 +408,67 @@ function UserManagementPage({ goHome, currentUser }) {
         <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
       </div>
 
+      {/* Security Policy Panel */}
+      {secPolicy && (
+        <div style={{ ...styles.section, marginBottom: "20px", maxWidth: "500px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", color: "#004f9f" }}>Security Policy</h3>
+            {!secEdit && (
+              <button onClick={() => setSecEdit(true)} style={{ ...styles.refreshBtn, color: "#004f9f" }}>
+                Edit
+              </button>
+            )}
+          </div>
+
+          {secEdit ? (
+            <div>
+              {[
+                { key: "password_expiry_days",   label: "Password Expiry (days)", min: 1, max: 365 },
+                { key: "max_login_attempts",     label: "Max Failed Attempts",    min: 1, max: 20  },
+                { key: "lockout_duration_hours", label: "Lockout Duration (hrs)", min: 1, max: 720 },
+              ].map(f => (
+                <div key={f.key} style={{ marginBottom: "10px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: "600", color: "#555", display: "block", marginBottom: "3px" }}>
+                    {f.label}
+                  </label>
+                  <input
+                    type="number" min={f.min} max={f.max}
+                    value={secForm[f.key]}
+                    onChange={e => setSecForm(prev => ({ ...prev, [f.key]: parseInt(e.target.value) || f.min }))}
+                    style={{ ...styles.input, margin: 0, width: "120px" }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                <button onClick={saveSecPolicy} disabled={secLoading}
+                  style={{ padding: "7px 18px", background: "#004f9f", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "13px" }}>
+                  {secLoading ? "Saving..." : "Save"}
+                </button>
+                <button onClick={() => { setSecEdit(false); setSecForm({ password_expiry_days: parseInt(secPolicy.password_expiry_days), max_login_attempts: parseInt(secPolicy.max_login_attempts), lockout_duration_hours: parseInt(secPolicy.lockout_duration_hours) }); }}
+                  style={{ padding: "7px 14px", background: "#f1f5f9", color: "#333", border: "1px solid #ccc", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <table style={{ fontSize: "13px", borderCollapse: "collapse", width: "100%" }}>
+              <tbody>
+                {[
+                  ["Password Expiry",      `${secPolicy.password_expiry_days} days`],
+                  ["Max Failed Attempts",  secPolicy.max_login_attempts],
+                  ["Lockout Duration",     `${secPolicy.lockout_duration_hours} hours`],
+                ].map(([label, val]) => (
+                  <tr key={label} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "6px 0", color: "#555", width: "60%" }}>{label}</td>
+                    <td style={{ padding: "6px 0", fontWeight: "bold", color: "#1e293b" }}>{val}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Create User Form */}
       <div style={styles.formBox}>
         <h3 style={{ margin: "0 0 14px", color: "#004f9f", fontSize: "15px" }}>Create New User</h3>
@@ -439,6 +540,7 @@ function UserManagementPage({ goHome, currentUser }) {
                   <th style={cell}>ID</th>
                   <th style={cell}>Username</th>
                   <th style={cell}>Role</th>
+                  <th style={cell}>Status</th>
                   <th style={cell}>Action</th>
                 </tr>
               </thead>
@@ -457,8 +559,27 @@ function UserManagementPage({ goHome, currentUser }) {
                       </span>
                     </td>
                     <td style={cell}>
+                      {u.is_locked ? (
+                        <span style={{ color: "#dc3545", fontSize: "11px", fontWeight: "bold" }}>
+                          🔒 Locked
+                        </span>
+                      ) : u.failed_attempts > 0 ? (
+                        <span style={{ color: "#e67e22", fontSize: "11px" }}>
+                          ⚠ {u.failed_attempts} fail{u.failed_attempts !== 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#28a745", fontSize: "11px" }}>Active</span>
+                      )}
+                    </td>
+                    <td style={cell}>
                       {u.username !== currentUser ? (
-                        <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                        <div style={{ display: "flex", gap: "4px", justifyContent: "center", flexWrap: "wrap" }}>
+                          {u.is_locked && (
+                            <button onClick={() => unlockUser(u.username)}
+                              style={{ ...styles.resetBtn, background: "#28a745" }}>
+                              Unlock
+                            </button>
+                          )}
                           <button
                             onClick={() => { setResetModal({ username: u.username }); setResetNewPwd(""); setResetAdminPwd(""); }}
                             style={styles.resetBtn}
