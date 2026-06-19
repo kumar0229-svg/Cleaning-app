@@ -10,6 +10,10 @@ backend/.env
 
 # Logs
 backend/logs/
+*.log
+
+# Databases
+*.db
 
 # Node
 frontend/node_modules/
@@ -34,3 +38,4 @@ Thumbs.db
 # Docs/temp
 *.pdf
 *.pptx
+presentation/
