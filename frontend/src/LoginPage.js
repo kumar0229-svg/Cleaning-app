@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import logo from "./assets/cipla-logo.png";
 import api from "./api";
 
-const APP_VERSION = process.env.REACT_APP_VERSION || "0.1.0";
+const APP_VERSION = process.env.REACT_APP_VERSION || "0.3.0";
 
 function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");
