@@ -16,6 +16,7 @@ import DashboardPage from "./DashboardPage";
 import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import DataRetentionPage from "./DataRetentionPage";
+import AdminPanelPage from "./AdminPanelPage";
 import logo from "./assets/cipla-logo.png";
 import Footer from "./Footer";
 import api from "./api";
@@ -174,6 +175,13 @@ const icons = {
       <circle cx="18" cy="6" r="1.2" fill="#004f9f" stroke="none"/>
       <line x1="18" y1="4" x2="18" y2="6"/>
       <line x1="18" y1="6" x2="19.2" y2="6.8"/>
+    </svg>
+  ),
+  /* Admin Panel / shield with checkmark */
+  admin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
+      <path d="M12 2L3 7v5c0 5.25 3.75 9.74 9 11 5.25-1.26 9-5.75 9-11V7L12 2z"/>
+      <polyline points="9 12 11 14 15 10"/>
     </svg>
   ),
   /* Help & User Guide / question mark in circle */
@@ -405,15 +413,13 @@ function App() {
   if (page === "matrix") return <>{offlineBanner}{warningOverlay}<MatrixPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "audit") return <>{offlineBanner}{warningOverlay}<AuditPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
   if (page === "query") return <>{offlineBanner}{warningOverlay}<NlpQueryPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
-  if (page === "users")  return <>{offlineBanner}{warningOverlay}<UserManagementPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
-  if (page === "policy")   return <>{offlineBanner}{warningOverlay}<PolicyPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "admin")    return <>{offlineBanner}{warningOverlay}<AdminPanelPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "protocol") return <>{offlineBanner}{warningOverlay}<ProtocolPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "help")   return <>{offlineBanner}{warningOverlay}<HelpPage goHome={() => navigate("home")} /><Footer /></>;
   if (page === "dashboard") return <>{offlineBanner}{warningOverlay}<DashboardPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
   if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
-  if (page === "retention") return <>{offlineBanner}{warningOverlay}<DataRetentionPage goHome={() => navigate("home")} currentUser={user} /><Footer /></>;
 
   const cards = [
     { key: "dashboard",   label: "Dashboard",                                        color: "#e0f2fe" },
@@ -476,42 +482,18 @@ function App() {
           </div>
         ))}
 
-        {role === "ADMIN" && (
-          <>
-            <div
-              style={styles.card}
-              onClick={() => navigate("users")}
-              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-            >
-              <div style={{ ...styles.iconBox, background: "#e8f5e9" }}>
-                <span style={{ color: "#004f9f" }}>{icons.users}</span>
-              </div>
-              <p style={styles.cardLabel}>User Management</p>
+        {(role === "ADMIN" || role === "HEAD_QA") && (
+          <div
+            style={styles.card}
+            onClick={() => navigate("admin")}
+            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
+            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          >
+            <div style={{ ...styles.iconBox, background: "#e8eaf6" }}>
+              <span style={{ color: "#004f9f" }}>{icons.admin}</span>
             </div>
-            <div
-              style={styles.card}
-              onClick={() => navigate("policy")}
-              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-            >
-              <div style={{ ...styles.iconBox, background: "#eaf0fb" }}>
-                <span style={{ color: "#004f9f" }}>{icons.policy}</span>
-              </div>
-              <p style={styles.cardLabel}>Calculation Policy</p>
-            </div>
-            <div
-              style={styles.card}
-              onClick={() => navigate("retention")}
-              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.04)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-            >
-              <div style={{ ...styles.iconBox, background: "#fef9ec" }}>
-                <span style={{ color: "#004f9f" }}>{icons.retention}</span>
-              </div>
-              <p style={styles.cardLabel}>Data Retention Policy</p>
-            </div>
-          </>
+            <p style={styles.cardLabel}>Admin Panel</p>
+          </div>
         )}
       </div>
 

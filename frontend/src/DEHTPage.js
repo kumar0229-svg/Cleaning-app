@@ -2104,7 +2104,7 @@ ${reportPrintRef.current.innerHTML}
                         <label style={S.label}>Completion Date *</label>
                         <input type="date" value={completionDate}
                           onChange={e => setCompletionDate(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                           style={S.input} />
                         <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>Date Run-3 was completed</p>
                       </div>

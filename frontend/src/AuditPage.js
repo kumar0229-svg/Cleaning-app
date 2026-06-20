@@ -15,12 +15,12 @@ const EVENT_GROUPS = {
 const ALL_EVENTS = ["LOGIN", "LOGIN_FAIL", "LOGOUT", "CREATE", "UPDATE", "DELETE", "MACO_MATRIX"];
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
 }
 function daysAgoStr(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
 }
 
 function AuditPage({ goHome, currentUser }) {

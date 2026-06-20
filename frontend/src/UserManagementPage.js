@@ -139,7 +139,7 @@ function PrivilegeMatrix() {
   );
 }
 
-function UserManagementPage({ goHome, currentUser }) {
+function UserManagementPage({ goHome, currentUser, embedded }) {
   const [username, setUsername]     = useState("");
   const [password, setPassword]     = useState("");
   const [showNewPwd, setShowNewPwd] = useState(false);
@@ -401,12 +401,14 @@ function UserManagementPage({ goHome, currentUser }) {
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial", background: "#f1f5f9", minHeight: "100vh" }}>
+    <div style={embedded ? {} : { padding: "20px", fontFamily: "Arial", background: "#f1f5f9", minHeight: "100vh" }}>
 
-      <div style={styles.pageHeader}>
-        <h2 style={{ margin: 0 }}>User Management</h2>
-        <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
-      </div>
+      {!embedded && (
+        <div style={styles.pageHeader}>
+          <h2 style={{ margin: 0 }}>User Management</h2>
+          <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
+        </div>
+      )}
 
       {/* Security Policy Panel */}
       {secPolicy && (

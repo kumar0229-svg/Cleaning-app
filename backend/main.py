@@ -47,6 +47,13 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_H  = 8
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
+# ── IST timezone ─────────────────────────────────────────────────────
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
+def now_ist() -> datetime.datetime:
+    """Return the current time in IST (UTC+5:30), timezone-aware."""
+    return datetime.datetime.now(IST)
+
 def _make_session_token() -> str:
     """Return  '<uuid>_<unix-expiry>'  so the token carries its own TTL.
     No extra DB column needed — expiry is parsed directly from the value.
@@ -121,6 +128,7 @@ from models.deht_report import DEHTReport
 from models.ccv import ContinuousCleaningVerification
 from models.lifecycle_verification import LifeCycleVerification
 from models.password_reset_request import PasswordResetRequest
+from models.genotoxic_impurity import GenotoxicImpurity
 from roles_config import ROLES_CAN_VIEW, ROLES_CAN_EDIT, ROLES_CAN_DELETE, ROLES_CAN_VIEW_AUDIT, ROLES_CAN_MANAGE_USERS, ROLES_CAN_MANAGE_POLICY
 
 app = FastAPI(title="Cleaning Carryover Limit Estimator")
@@ -317,7 +325,7 @@ def startup():
         for _k, _v in _security_defaults.items():
             if not db.query(SystemConfig).filter(SystemConfig.config_key == _k).first():
                 db.add(SystemConfig(config_key=_k, config_value=_v,
-                                    updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+                                    updated_by="system", updated_at=now_ist().isoformat()))
         db.commit()
     finally:
         db.close()
@@ -327,7 +335,7 @@ def startup():
     try:
         if not db.query(SystemConfig).filter(SystemConfig.config_key == "maco_policy").first():
             db.add(SystemConfig(config_key="maco_policy", config_value="all_min",
-                                updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+                                updated_by="system", updated_at=now_ist().isoformat()))
             db.commit()
     finally:
         db.close()
@@ -336,7 +344,7 @@ def startup():
     try:
         if not db.query(SystemConfig).filter(SystemConfig.config_key == "verification_interval_years").first():
             db.add(SystemConfig(config_key="verification_interval_years", config_value="3",
-                                updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+                                updated_by="system", updated_at=now_ist().isoformat()))
             db.commit()
     finally:
         db.close()
@@ -345,7 +353,7 @@ def startup():
     try:
         if not db.query(SystemConfig).filter(SystemConfig.config_key == "deht_hours").first():
             db.add(SystemConfig(config_key="deht_hours", config_value="72",
-                                updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+                                updated_by="system", updated_at=now_ist().isoformat()))
             db.commit()
     finally:
         db.close()
@@ -364,7 +372,7 @@ def startup():
         for _rkey, _rval in _retention_defaults.items():
             if not db.query(SystemConfig).filter(SystemConfig.config_key == _rkey).first():
                 db.add(SystemConfig(config_key=_rkey, config_value=_rval,
-                                    updated_by="system", updated_at=datetime.datetime.utcnow().isoformat()))
+                                    updated_by="system", updated_at=now_ist().isoformat()))
         db.commit()
     finally:
         db.close()
@@ -881,13 +889,13 @@ def add_atc_category(
     if config:
         config.config_value = json.dumps(current)
         config.updated_by   = current_user.username
-        config.updated_at   = datetime.datetime.utcnow().isoformat()
+        config.updated_at   = now_ist().isoformat()
     else:
         db.add(SystemConfig(
             config_key="atc_custom_categories",
             config_value=json.dumps(current),
             updated_by=current_user.username,
-            updated_at=datetime.datetime.utcnow().isoformat()
+            updated_at=now_ist().isoformat()
         ))
     db.commit()
     return {"message": "Category added", "categories": current}
@@ -1014,7 +1022,7 @@ def archive_product(
 
     product.is_archived = True
     product.archived_by = current_user.username
-    product.archived_at = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    product.archived_at = now_ist().isoformat(timespec="seconds")
 
     # Remove equipment mappings so archived product is excluded from MACO
     db.query(ProductEquipment).filter(
@@ -1111,11 +1119,11 @@ def update_policy(
     if row:
         row.config_value = req.policy
         row.updated_by   = current_user.username
-        row.updated_at   = datetime.datetime.utcnow().isoformat()
+        row.updated_at   = now_ist().isoformat()
     else:
         db.add(SystemConfig(config_key="maco_policy", config_value=req.policy,
                             updated_by=current_user.username,
-                            updated_at=datetime.datetime.utcnow().isoformat()))
+                            updated_at=now_ist().isoformat()))
     db.commit()
 
     log_audit(db, "UPDATE", "SYSTEM", 0, "maco_policy", old_policy, req.policy, current_user.username)
@@ -1309,7 +1317,7 @@ def update_retention_policy(
         if str(val) not in _VALID_RETENTION_YEARS:
             raise HTTPException(status_code=400, detail=f"Invalid retention value '{val}'. Must be one of {sorted(_VALID_RETENTION_YEARS)}")
 
-    now_iso = datetime.datetime.utcnow().isoformat()
+    now_iso = now_ist().isoformat()
 
     for key, val in req.settings.items():
         row = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
@@ -1351,7 +1359,7 @@ def run_retention_cleanup(
     if not verify_password(req.password, current_user.password):
         raise HTTPException(status_code=401, detail="Incorrect password ❌")
 
-    now_iso        = datetime.datetime.utcnow().isoformat()
+    now_iso        = now_ist().isoformat()
     archived_counts = {}
 
     for cat in _RETENTION_CATEGORIES:
@@ -1908,7 +1916,7 @@ def matrix(
 
     # Save run snapshot for history
     run = MacoRun(
-        run_at=datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        run_at=now_ist().isoformat(timespec="seconds"),
         run_by=current_user.username,
         source_product_id=src.product_id,
         source_product_name=src.product_name,
@@ -2215,7 +2223,7 @@ def get_users(
     current_user: User = Depends(get_current_user)
 ):
     check_role(current_user.role, ROLES_CAN_MANAGE_USERS)
-    now = datetime.datetime.utcnow()
+    now = now_ist()
     users = db.query(User).filter(
         (User.is_archived == False) | (User.is_archived == None)
     ).all()
@@ -2337,7 +2345,7 @@ def change_own_password(
 
     current_user.password = hash_password(req.new_password)
     current_user.force_password_reset = False
-    current_user.password_changed_at = datetime.datetime.utcnow().isoformat()
+    current_user.password_changed_at = now_ist().isoformat()
     db.commit()
 
     log_audit(db, "CHANGE_PASSWORD", "USER", current_user.user_id,
@@ -2392,7 +2400,7 @@ def update_security_policy(
         "max_login_attempts":     str(req.max_login_attempts),
         "lockout_duration_hours": str(req.lockout_duration_hours),
     }
-    now = datetime.datetime.utcnow().isoformat()
+    now = now_ist().isoformat()
     for key, val in updates.items():
         row = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
         if row:
@@ -2428,6 +2436,274 @@ def unlock_user(
     return {"message": f"User '{username}' unlocked ✅"}
 
 # ===================================================
+# GENOTOXIC / NITROSAMINE IMPURITY MAPPING
+# ===================================================
+
+class GenotoxicImpurityRequest(BaseModel):
+    product_id:        int
+    facility_id:       int
+    impurity_name:     str
+    pde_ug_day:        float
+    analytical_method: Optional[str] = None
+    lod_ppm:           Optional[float] = None
+    loq_ppm:           Optional[float] = None
+    equipment_ids:     Optional[List[int]] = []
+
+@app.get("/genotoxic/impurities")
+def list_genotoxic_impurities(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ROLES_CAN_VIEW)
+    rows = db.query(GenotoxicImpurity).filter(
+        GenotoxicImpurity.product_id == product_id
+    ).order_by(GenotoxicImpurity.impurity_id).all()
+    result = []
+    for imp in rows:
+        result.append({
+            "impurity_id":       imp.impurity_id,
+            "product_id":        imp.product_id,
+            "facility_id":       imp.facility_id,
+            "impurity_name":     imp.impurity_name,
+            "pde_ug_day":        imp.pde_ug_day,
+            "analytical_method": imp.analytical_method,
+            "lod_ppm":           imp.lod_ppm,
+            "loq_ppm":           imp.loq_ppm,
+            "equipment_ids":     json.loads(imp.equipment_ids or "[]"),
+            "created_by":        imp.created_by,
+            "created_at":        imp.created_at,
+            "updated_by":        imp.updated_by,
+            "updated_at":        imp.updated_at,
+        })
+    return result
+
+@app.post("/genotoxic/impurities")
+def add_genotoxic_impurity(
+    req: GenotoxicImpurityRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ROLES_CAN_EDIT)
+    imp = GenotoxicImpurity(
+        product_id        = req.product_id,
+        facility_id       = req.facility_id,
+        impurity_name     = req.impurity_name.strip(),
+        pde_ug_day        = req.pde_ug_day,
+        analytical_method = req.analytical_method,
+        lod_ppm           = req.lod_ppm,
+        loq_ppm           = req.loq_ppm,
+        equipment_ids     = json.dumps(req.equipment_ids or []),
+        created_by        = current_user.username,
+        created_at        = now_ist().isoformat(),
+    )
+    db.add(imp)
+    db.commit()
+    db.refresh(imp)
+    log_audit(db, "CREATE", "GENOTOXIC_IMPURITY", imp.impurity_id,
+              "impurity_name", "", imp.impurity_name, current_user.username)
+    return {"impurity_id": imp.impurity_id, "message": "Impurity added ✅"}
+
+@app.put("/genotoxic/impurities/{impurity_id}")
+def update_genotoxic_impurity(
+    impurity_id: int,
+    req: GenotoxicImpurityRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ROLES_CAN_EDIT)
+    imp = db.query(GenotoxicImpurity).filter(
+        GenotoxicImpurity.impurity_id == impurity_id
+    ).first()
+    if not imp:
+        raise HTTPException(status_code=404, detail="Impurity not found")
+    old_name = imp.impurity_name
+    imp.impurity_name     = req.impurity_name.strip()
+    imp.pde_ug_day        = req.pde_ug_day
+    imp.analytical_method = req.analytical_method
+    imp.lod_ppm           = req.lod_ppm
+    imp.loq_ppm           = req.loq_ppm
+    imp.equipment_ids     = json.dumps(req.equipment_ids or [])
+    imp.updated_by        = current_user.username
+    imp.updated_at        = now_ist().isoformat()
+    db.commit()
+    log_audit(db, "UPDATE", "GENOTOXIC_IMPURITY", impurity_id,
+              "impurity_name", old_name, imp.impurity_name, current_user.username)
+    return {"message": "Impurity updated ✅"}
+
+class PasswordConfirmRequest(BaseModel):
+    password: str
+
+@app.delete("/genotoxic/impurities/{impurity_id}")
+def delete_genotoxic_impurity(
+    impurity_id: int,
+    req: PasswordConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    check_role(current_user.role, ROLES_CAN_DELETE)
+    if not verify_password(req.password, current_user.password):
+        raise HTTPException(status_code=401, detail="Incorrect password ❌")
+    imp = db.query(GenotoxicImpurity).filter(
+        GenotoxicImpurity.impurity_id == impurity_id
+    ).first()
+    if not imp:
+        raise HTTPException(status_code=404, detail="Impurity not found")
+    log_audit(db, "DELETE", "GENOTOXIC_IMPURITY", impurity_id,
+              "impurity_name", imp.impurity_name, "", current_user.username)
+    db.delete(imp)
+    db.commit()
+    return {"message": "Impurity deleted ✅"}
+
+@app.get("/genotoxic/limits/{product_id}")
+def get_genotoxic_limits(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calculate cleaning limits for all genotoxic/nitrosamine impurities mapped to a product.
+
+    Formula mirrors the PDE-method MACO but with PDE in μg/day:
+        MACO_genotoxic (mg) = PDE_impurity (μg/day) × MinYield_target (kg) × 1000
+                              ─────────────────────────────────────────────────────
+                                          MaxDose_target (mg/day)
+
+    Rinse (ppm) = MACO (mg) × RinseArea (in²) / (SurfaceArea (in²) × RinseVol (L))
+    Swab  (ppm) = MACO (mg) × SwabArea  (in²) × 100 / SurfaceArea (in²)
+    """
+    check_role(current_user.role, ROLES_CAN_VIEW)
+
+    impurities = db.query(GenotoxicImpurity).filter(
+        GenotoxicImpurity.product_id == product_id
+    ).order_by(GenotoxicImpurity.impurity_id).all()
+
+    if not impurities:
+        return []
+
+    def _cap10(v):
+        return min(v, 10.0) if v is not None else None
+
+    result = []
+    for imp in impurities:
+        eq_ids = json.loads(imp.equipment_ids or "[]")
+        if not eq_ids:
+            result.append({
+                "impurity_id":            imp.impurity_id,
+                "impurity_name":          imp.impurity_name,
+                "pde_ug_day":             imp.pde_ug_day,
+                "analytical_method":      imp.analytical_method,
+                "lod_ppm":                imp.lod_ppm,
+                "loq_ppm":                imp.loq_ppm,
+                "equipment_limits":       [],
+                "governing_rinse_limit":  None,
+                "governing_swab_limit":   None,
+                "rinse_status":           None,
+                "swab_status":            None,
+                "target_products":        [],
+            })
+            continue
+
+        equipment_rows = db.query(Equipment).filter(
+            Equipment.equipment_id.in_(eq_ids)
+        ).all()
+        eq_map = {e.equipment_id: e for e in equipment_rows}
+
+        # All products that share any of these equipment pieces (excluding this product)
+        pe_rows = db.query(ProductEquipment).filter(
+            ProductEquipment.equipment_id.in_(eq_ids),
+            ProductEquipment.product_id != product_id,
+        ).all()
+        target_ids = list({pe.product_id for pe in pe_rows})
+        target_products = db.query(Product).filter(
+            Product.product_id.in_(target_ids),
+            (Product.is_archived == False) | (Product.is_archived == None),
+        ).all() if target_ids else []
+
+        # Per-equipment governing limit (minimum across all valid target products)
+        # {equipment_id: {name, surface_area_in2, rinse_vol_L, rinse_limit, swab_limit}}
+        eq_limits: dict = {}
+        for eq in equipment_rows:
+            eq_limits[eq.equipment_id] = {
+                "equipment_id":     eq.equipment_id,
+                "name":             eq.equipment_name,
+                "surface_area_in2": round(eq.surface_area_cm2 / 6.4516, 2) if eq.surface_area_cm2 else 0,
+                "rinse_volume_L":   eq.rinse_volume_liters,
+                "rinse_limit":      None,
+                "swab_limit":       None,
+            }
+
+        tgt_summaries = []
+        for tgt in target_products:
+            if not (tgt.min_yield_kg and tgt.max_daily_dose_mg and tgt.max_daily_dose_mg > 0):
+                continue
+            # MACO (mg) using impurity PDE in μg/day (×1000 because PDE is μg not mg)
+            maco_mg = (imp.pde_ug_day * tgt.min_yield_kg * 1_000) / tgt.max_daily_dose_mg
+
+            # Per-equipment limits for this specific target product
+            tgt_eq_limits = []
+            for eq_id in eq_ids:
+                eq = eq_map.get(eq_id)
+                if not eq or not eq.surface_area_cm2:
+                    continue
+                sa_in2 = eq.surface_area_cm2 / 6.4516
+                rv_L   = eq.rinse_volume_liters or 0
+
+                # Use 6 decimal places so very small genotoxic limits aren't rounded to 0
+                r_raw = round((maco_mg * 9) / (sa_in2 * rv_L), 6) if (sa_in2 > 0 and rv_L > 0) else None
+                s_raw = round((maco_mg * 9 * 100) / sa_in2, 6)    if sa_in2 > 0               else None
+                r     = _cap10(r_raw)
+                s     = _cap10(s_raw)
+
+                tgt_eq_limits.append({
+                    "equipment_id": eq_id,
+                    "name":         eq.equipment_name,
+                    "rinse_limit":  r,
+                    "swab_limit":   s,
+                })
+
+                # Keep running minimum for governing limits
+                eql = eq_limits[eq_id]
+                if r is not None and (eql["rinse_limit"] is None or r < eql["rinse_limit"]):
+                    eql["rinse_limit"] = r
+                if s is not None and (eql["swab_limit"] is None or s < eql["swab_limit"]):
+                    eql["swab_limit"] = s
+
+            tgt_summaries.append({
+                "product_name": tgt.product_name,
+                "maco_mg":      round(maco_mg, 6),
+                "equipment":    tgt_eq_limits,
+            })
+
+        eq_list = list(eq_limits.values())
+        valid_rinse = [e["rinse_limit"] for e in eq_list if e["rinse_limit"] is not None]
+        valid_swab  = [e["swab_limit"]  for e in eq_list if e["swab_limit"]  is not None]
+        gov_rinse   = round(min(valid_rinse), 6) if valid_rinse else None
+        gov_swab    = round(min(valid_swab),  6) if valid_swab  else None
+
+        loq = imp.loq_ppm
+        rinse_status = ("PASS" if gov_rinse is not None and loq is not None and gov_rinse >= loq
+                        else ("FAIL" if gov_rinse is not None and loq is not None else None))
+        swab_status  = ("PASS" if gov_swab  is not None and loq is not None and gov_swab  >= loq
+                        else ("FAIL" if gov_swab  is not None and loq is not None else None))
+
+        result.append({
+            "impurity_id":           imp.impurity_id,
+            "impurity_name":         imp.impurity_name,
+            "pde_ug_day":            imp.pde_ug_day,
+            "analytical_method":     imp.analytical_method,
+            "lod_ppm":               imp.lod_ppm,
+            "loq_ppm":               imp.loq_ppm,
+            "target_products":       tgt_summaries,   # each entry now has .equipment[] with per-eq limits
+            "equipment_limits":      eq_list,          # governing minimum per equipment (backward compat)
+            "governing_rinse_limit": gov_rinse,
+            "governing_swab_limit":  gov_swab,
+            "rinse_status":          rinse_status,
+            "swab_status":           swab_status,
+        })
+
+    return result
+
+# ===================================================
 # FORGOT PASSWORD — user submits a reset request
 # ===================================================
 class ForgotPasswordRequest(BaseModel):
@@ -2451,7 +2727,7 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
 
     new_req = PasswordResetRequest(
         username=req.username,
-        requested_at=datetime.datetime.utcnow().isoformat(),
+        requested_at=now_ist().isoformat(),
         status="pending",
     )
     db.add(new_req)
@@ -2521,7 +2797,7 @@ def approve_reset_request(
 
     reset_req.status = "approved"
     reset_req.handled_by = current_user.username
-    reset_req.handled_at = datetime.datetime.utcnow().isoformat()
+    reset_req.handled_at = now_ist().isoformat()
     db.commit()
 
     log_audit(db, "APPROVE_PASSWORD_RESET", "USER", user.user_id,
@@ -2556,7 +2832,7 @@ def reject_reset_request(
 
     reset_req.status = "rejected"
     reset_req.handled_by = current_user.username
-    reset_req.handled_at = datetime.datetime.utcnow().isoformat()
+    reset_req.handled_at = now_ist().isoformat()
     db.commit()
 
     logger.info(f"Admin {current_user.username} rejected password reset for {reset_req.username}")
@@ -2583,7 +2859,7 @@ def archive_user(
 
     user.is_archived = True
     user.archived_by = current_user.username
-    user.archived_at = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    user.archived_at = now_ist().isoformat(timespec="seconds")
     db.commit()
 
     log_audit(db, "UPDATE", "USER", user.user_id,
@@ -2612,8 +2888,8 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     # Account lockout check (before password verification to avoid enumeration timing)
     if user and not user.is_archived and user.locked_until:
         locked_dt = datetime.datetime.fromisoformat(user.locked_until)
-        if datetime.datetime.utcnow() < locked_dt:
-            remaining = int((locked_dt - datetime.datetime.utcnow()).total_seconds() / 60)
+        if now_ist() < locked_dt:
+            remaining = int((locked_dt - now_ist()).total_seconds() / 60)
             raise HTTPException(
                 status_code=423,
                 detail=f"Account locked. Try again in {remaining} minute(s)."
@@ -2645,7 +2921,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             if user.failed_attempts >= max_attempts:
                 lockout_hours = _get_cfg("lockout_duration_hours", 8)
                 user.locked_until = (
-                    datetime.datetime.utcnow() + datetime.timedelta(hours=lockout_hours)
+                    now_ist() + datetime.timedelta(hours=lockout_hours)
                 ).isoformat()
                 db.commit()
                 raise HTTPException(
@@ -2674,7 +2950,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     password_expires_in_days = None
     if user.password_changed_at and not user.force_password_reset:
         changed_dt = datetime.datetime.fromisoformat(user.password_changed_at)
-        age_days = (datetime.datetime.utcnow() - changed_dt).days
+        age_days = (now_ist() - changed_dt).days
         if age_days >= expiry_days:
             user.force_password_reset = True
         else:
@@ -3145,7 +3421,7 @@ def save_protocol_archive(
         product_name=req.product_name,
         facility_name=req.facility_name,
         generated_by=current_user.username,
-        generated_at=datetime.datetime.utcnow().isoformat(),
+        generated_at=now_ist().isoformat(),
         snapshot_json=json.dumps(req.snapshot, separators=(",", ":")),
         status=req.status,
     )
@@ -3295,7 +3571,7 @@ def create_report(
             detail=f"A report already exists for this protocol (Report #{existing.report_id}, status: {existing.status or 'Submitted'}). Edit the existing report instead."
         )
 
-    now = datetime.datetime.utcnow().isoformat()
+    now = now_ist().isoformat()
     report = CleaningValidationReport(
         archive_id=req.archive_id,
         facility_id=int(json.loads(archive.snapshot_json).get("sourceProduct", {}).get("facility_id", 0)),
@@ -3414,7 +3690,7 @@ def approve_report(
 
     report.status = "Approved"
     report.approved_by = current_user.username
-    report.approved_at = datetime.datetime.utcnow().isoformat()
+    report.approved_at = now_ist().isoformat()
     db.commit()
 
     log_audit(db, "APPROVE", "CLEANING_REPORT", report_id,
@@ -3447,7 +3723,7 @@ def update_report(
     old_data = report.results_data
     report.results_data = json.dumps(req.results_data.dict(), separators=(",", ":"))
     report.last_modified_by = current_user.username
-    report.last_modified_at = datetime.datetime.utcnow().isoformat()
+    report.last_modified_at = now_ist().isoformat()
     if not req.is_draft:
         report.status = "Submitted"
     db.commit()
@@ -3589,7 +3865,7 @@ def create_ccv(
         run_number=run_number,
         results_data=json.dumps(req.results_data.dict(), separators=(",", ":")),
         submitted_by=current_user.username,
-        submitted_at=datetime.datetime.utcnow().isoformat(),
+        submitted_at=now_ist().isoformat(),
         status="Draft" if req.is_draft else "Completed",
     )
     db.add(ccv)
@@ -3770,12 +4046,12 @@ def set_lifecycle_interval(
     if row:
         row.config_value = str(req.years)
         row.updated_by   = current_user.username
-        row.updated_at   = datetime.datetime.utcnow().isoformat()
+        row.updated_at   = now_ist().isoformat()
     else:
         db.add(SystemConfig(config_key="verification_interval_years",
                             config_value=str(req.years),
                             updated_by=current_user.username,
-                            updated_at=datetime.datetime.utcnow().isoformat()))
+                            updated_at=now_ist().isoformat()))
     db.commit()
     return {"message": f"Verification interval updated to {req.years} year(s) ✅"}
 
@@ -3814,7 +4090,7 @@ def log_lifecycle_verification(
         report_id       = req.report_id,
         completion_date = req.completion_date,
         created_by      = current_user.username,
-        created_at      = datetime.datetime.utcnow().isoformat(),
+        created_at      = now_ist().isoformat(),
     )
     db.add(lv)
     db.commit()
@@ -3893,7 +4169,7 @@ def update_ccv(
     old_data = ccv.results_data
     ccv.results_data = json.dumps(req.results_data.dict(), separators=(",", ":"))
     ccv.last_modified_by = current_user.username
-    ccv.last_modified_at = datetime.datetime.utcnow().isoformat()
+    ccv.last_modified_at = now_ist().isoformat()
 
     if not req.is_draft and ccv.status == "Draft":
         completed_count = db.query(ContinuousCleaningVerification).filter(
@@ -4119,11 +4395,11 @@ def set_deht_hours(
     if row:
         row.config_value = str(req.hours)
         row.updated_by   = current_user.username
-        row.updated_at   = datetime.datetime.utcnow().isoformat()
+        row.updated_at   = now_ist().isoformat()
     else:
         db.add(SystemConfig(config_key="deht_hours", config_value=str(req.hours),
                             updated_by=current_user.username,
-                            updated_at=datetime.datetime.utcnow().isoformat()))
+                            updated_at=now_ist().isoformat()))
     db.commit()
     log_audit(db, "UPDATE", "SYSTEM", 0, "deht_hours", old_val, str(req.hours), current_user.username)
     return {"message": f"DEHT hours updated to {req.hours} hours"}
@@ -4177,7 +4453,7 @@ def create_deht_report(
             detail=f"A DEHT report already exists for this protocol (Report #{existing.report_id}). Edit the existing report instead."
         )
 
-    now = datetime.datetime.utcnow().isoformat()
+    now = now_ist().isoformat()
     snap = json.loads(archive.snapshot_json) if archive.snapshot_json else {}
     report = DEHTReport(
         archive_id=req.archive_id,
@@ -4282,7 +4558,7 @@ def update_deht_report(
     old_data = report.results_data
     report.results_data = json.dumps(req.results_data.dict(), separators=(",", ":"))
     report.last_modified_by = current_user.username
-    report.last_modified_at = datetime.datetime.utcnow().isoformat()
+    report.last_modified_at = now_ist().isoformat()
     if not req.is_draft:
         report.status = "Submitted"
     db.commit()
@@ -4311,7 +4587,7 @@ def approve_deht_report(
         raise HTTPException(status_code=400, detail="Cannot approve a Draft report. Submit it first.")
     report.status = "Approved"
     report.approved_by = current_user.username
-    report.approved_at = datetime.datetime.utcnow().isoformat()
+    report.approved_at = now_ist().isoformat()
     db.commit()
     log_audit(db, "APPROVE", "DEHT_REPORT", report_id,
               "status", "Submitted", "Approved", current_user.username)

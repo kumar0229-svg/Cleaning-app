@@ -63,6 +63,7 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
   const [sourceProduct, setSourceProduct] = useState(null);
   const [policy, setPolicy]         = useState(null);
   const [protocolSamplingPlan, setProtocolSamplingPlan] = useState([]);
+  const [genotoxicLimits, setGenotoxicLimits] = useState(null);
 
   // ── Archive viewing ────────────────────────────────────────────────
   const [archiveDoc, setArchiveDoc] = useState(null);
@@ -88,6 +89,9 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
   const [runResults, setRunResults] = useState([
     { run_number: 1, batch_number: "", equipment_results: [] },
   ]);
+  const [geoRunResults, setGeoRunResults] = useState([
+    { run_number: 1, impurity_results: [] },
+  ]);
   const [trainingDetails, setTrainingDetails] = useState("");
   const [sopFollowed, setSOPFollowed] = useState("");
   const [completionDate, setCompletionDate] = useState("");
@@ -112,9 +116,10 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
   const [savingDraft, setSavingDraft] = useState(false);
 
   // ── Derived display (live vs archived) ─────────────────────────────
-  const displayResult        = archiveDoc?.result        ?? result;
-  const displaySourceProduct = archiveDoc?.sourceProduct ?? sourceProduct;
-  const displaySamplingPlan  = protocolSamplingPlan; // always live — never use frozen archive copy
+  const displayResult          = archiveDoc?.result          ?? result;
+  const displaySourceProduct   = archiveDoc?.sourceProduct   ?? sourceProduct;
+  const displaySamplingPlan    = protocolSamplingPlan; // always live — never use frozen archive copy
+  const displayGenotoxicLimits = archiveDoc?.genotoxicLimits ?? genotoxicLimits;
   const displayDocNumber     = archiveDoc?.docNumber ??
     (result ? `PCV-PROTO-${String(sourceProduct?.product_id || "").padStart(4, "0")}-${new Date().getFullYear()}` : "—");
   const getFacilityName = (fid) =>
@@ -150,16 +155,18 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
   // ── Protocol generation ────────────────────────────────────────────
   const generate = async () => {
     if (!selectedProduct) { alert("Select a source product ❌"); return; }
-    setLoading(true); setResult(null); setArchiveDoc(null);
+    setLoading(true); setResult(null); setArchiveDoc(null); setGenotoxicLimits(null);
     try {
       const src = products.find(p => String(p.product_id) === String(selectedProduct));
       setSourceProduct(src || null);
-      const [macoRes, sampRes] = await Promise.all([
+      const [macoRes, sampRes, geoRes] = await Promise.all([
         api.post("/maco/matrix", { source_product_id: parseInt(selectedProduct) }),
         api.get("/sampling/plan"),
+        api.get(`/genotoxic/limits/${selectedProduct}`).catch(() => ({ data: [] })),
       ]);
       setResult(macoRes.data);
       setProtocolSamplingPlan(sampRes.data);
+      setGenotoxicLimits(geoRes.data);
     } catch (err) {
       alert(err.response?.data?.detail || "Error generating protocol ❌");
     } finally { setLoading(false); }
@@ -184,7 +191,7 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
     try {
       const facilityName = facilities.find(f => f.facility_id === sourceProduct.facility_id)?.facility_name || "";
       const docNum = `PCV-PROTO-${String(sourceProduct.product_id).padStart(4, "0")}-${new Date().getFullYear()}`;
-      const snapshot = { result, sourceProduct, facilityName, docNumber: docNum, samplingPlan: protocolSamplingPlan };
+      const snapshot = { result, sourceProduct, facilityName, docNumber: docNum, samplingPlan: protocolSamplingPlan, genotoxicLimits };
       const res = await api.post("/protocol/archive", {
         snapshot, doc_number: docNum, product_id: sourceProduct.product_id,
         product_name: sourceProduct.product_name, facility_name: facilityName, status: saveStatus,
@@ -389,6 +396,44 @@ export default function CCVProtocolPage({ goHome, currentUser, role }) {
     } catch (_) {}
 
     await loadProtocolEquipment(protocol.archive_id, existingReport?.status === "Draft" ? existingReport : null);
+
+    // Load genotoxic impurity limits and init geo run results
+    try {
+      const geoRes = await api.get(`/genotoxic/limits/${reportProduct}`);
+      const geoData = geoRes.data || [];
+      const blankImpResults = geoData.map(imp => ({
+        impurity_id:           imp.impurity_id,
+        impurity_name:         imp.impurity_name,
+        pde_ug_day:            imp.pde_ug_day,
+        governing_rinse_limit: imp.governing_rinse_limit,
+        governing_swab_limit:  imp.governing_swab_limit,
+        loq_ppm:               imp.loq_ppm,
+        rinse_lot_number: "",
+        rinse_result_ppm: "",
+        swab_lot_number:  "",
+        swab_result_ppm:  "",
+      }));
+      const draftGeoRuns = existingReport?.status === "Draft"
+        ? existingReport.results_data?.geo_runs : null;
+      setGeoRunResults(prev => prev.map((run, ri) => {
+        const draftRun = draftGeoRuns?.[ri];
+        return {
+          ...run,
+          impurity_results: blankImpResults.map((imp, ii) => {
+            const draftImp = draftRun?.impurity_results?.[ii];
+            if (!draftImp || draftImp.impurity_id !== imp.impurity_id) return imp;
+            return { ...imp,
+              rinse_lot_number: draftImp.rinse_lot_number || "",
+              rinse_result_ppm: draftImp.rinse_result_ppm || "",
+              swab_lot_number:  draftImp.swab_lot_number  || "",
+              swab_result_ppm:  draftImp.swab_result_ppm  || "",
+            };
+          }),
+        };
+      }));
+    } catch {
+      setGeoRunResults(prev => prev.map(run => ({ ...run, impurity_results: [] })));
+    }
   };
 
   const handleRunResultChange = (runIdx, equipIdx, field, value, swabIdx) => {
@@ -577,6 +622,7 @@ ${reportPrintRef.current.innerHTML}
     try {
       const resultsData = {
         runs: runResults,
+        geo_runs: geoRunResults,
         training_details: trainingDetails,
         sop_followed: sopFollowed,
         start_date: selectedProtocol.generated_at,
@@ -607,9 +653,8 @@ ${reportPrintRef.current.innerHTML}
       setSOPFollowed("");
       setCompletionDate("");
       setExistingReportForProtocol(null);
-      setRunResults([
-        { run_number: 1, batch_number: "", equipment_results: [] },
-      ]);
+      setRunResults([{ run_number: 1, batch_number: "", equipment_results: [] }]);
+      setGeoRunResults([{ run_number: 1, impurity_results: [] }]);
       loadReportList();
     } catch (e) { alert(apiError(e, "Error submitting report.")); }
     finally { setReportLoading(false); }
@@ -624,6 +669,7 @@ ${reportPrintRef.current.innerHTML}
     try {
       const resultsData = {
         runs: runResults || [],
+        geo_runs: geoRunResults,
         training_details: trainingDetails,
         sop_followed: sopFollowed,
         start_date: selectedProtocol?.generated_at || null,
@@ -647,6 +693,23 @@ ${reportPrintRef.current.innerHTML}
       loadReportList();
     } catch (e) { alert(apiError(e, "Error saving draft.")); }
     finally { setSavingDraft(false); }
+  };
+
+  const handleGeoResultChange = (runIdx, impIdx, field, value) => {
+    setGeoRunResults(prev => prev.map((run, ri) => {
+      if (ri !== runIdx) return run;
+      const impurity_results = run.impurity_results.map((imp, ii) =>
+        ii !== impIdx ? imp : { ...imp, [field]: value }
+      );
+      return { ...run, impurity_results };
+    }));
+  };
+
+  const fmtGeo = (v) => {
+    if (v == null) return "—";
+    if (v === 0) return "0";
+    if (v > 0 && v < 0.0001) return v.toExponential(3);
+    return String(v);
   };
 
   const compareResultToLimit = (result, limit) => {
@@ -742,6 +805,14 @@ ${printRef.current.innerHTML}
     const relevantPlan = displaySamplingPlan.filter(c =>
       catMap.size === 0 || catMap.has(c.category_id)
     ).filter(c => c.entries.length > 0);
+
+    const geoLimits = displayGenotoxicLimits || [];
+    const fmtGeo = (v) => {
+      if (v == null) return "—";
+      if (v === 0) return "0";
+      if (v > 0 && v < 0.0001) return v.toExponential(3);
+      return String(v);
+    };
 
     return (
       <div ref={printRef} style={{ background: "white", boxShadow: "0 4px 28px rgba(0,0,0,0.32)", minHeight: "1123px" }}>
@@ -1281,9 +1352,112 @@ ${printRef.current.innerHTML}
           );
         })()}
 
-        {/* § 6 Conclusion */}
+        {/* § 6 Genotoxic / Nitrosamine Impurity Limits */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>6. Conclusion</p>
+          <p style={S.sectionTitle}>6. Genotoxic / Nitrosamine Impurity Limits</p>
+          {geoLimits.length === 0 ? (
+            <p style={S.para}>There is no genotoxic / nitrosamine impurity identified for this product.</p>
+          ) : (
+            <>
+              <p style={S.para}>
+                The following genotoxic and nitrosamine impurities have been identified for{" "}
+                <strong>{r.source}</strong>. Cleaning limits are calculated per ICH M7 / EMA Nitrosamine
+                guidelines using the impurity-specific PDE/ADE value. MACO formula:
+                <em> MACO (mg) = PDE (μg/day) × Minimum Batch Yield (kg) × 1,000 / Maximum Daily Dose of target product (mg).</em>
+              </p>
+              {geoLimits.map((imp) => (
+                <div key={imp.impurity_id} style={{ marginBottom: "18px", border: "1px solid #fbbf24",
+                  borderRadius: "8px", overflow: "hidden" }}>
+                  <div style={{ background: "#fef3c7", padding: "8px 14px",
+                    display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                    <div>
+                      <span style={{ fontWeight: "700", fontSize: "13px", color: "#92400e" }}>{imp.impurity_name}</span>
+                      <span style={{ marginLeft: "12px", fontSize: "12px", color: "#b45309" }}>
+                        PDE/ADE: {imp.pde_ug_day} μg/day
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", fontSize: "11px", color: "#78350f" }}>
+                      {imp.analytical_method && <span>Method: {imp.analytical_method}</span>}
+                      {imp.lod_ppm != null && <span>| LOD: {imp.lod_ppm} ppm</span>}
+                      {imp.loq_ppm != null && <span>| LOQ: {imp.loq_ppm} ppm</span>}
+                    </div>
+                  </div>
+                  {imp.target_products.length === 0 ? (
+                    <p style={{ ...S.para, margin: "10px 14px", color: "#94a3b8" }}>
+                      No target products share this equipment in the facility.
+                    </p>
+                  ) : (
+                    <>
+                      <table style={{ ...S.dataTable, margin: 0 }}>
+                        <thead>
+                          <tr style={{ background: "#fef9c3" }}>
+                            <th style={S.th}>Target Product</th>
+                            <th style={{ ...S.th, textAlign: "center" }}>MACO (mg)</th>
+                            <th style={S.th}>Equipment</th>
+                            <th style={{ ...S.th, textAlign: "center" }}>Rinse Limit (ppm)</th>
+                            <th style={{ ...S.th, textAlign: "center" }}>Swab Limit (ppm)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {imp.target_products.map((tp, ti) =>
+                            (tp.equipment || []).map((eq, ei) => (
+                              <tr key={`${ti}-${ei}`} style={{ background: ti % 2 === 0 ? "white" : "#fffbf0" }}>
+                                {ei === 0 && (
+                                  <>
+                                    <td style={{ ...S.td, fontWeight: "600", verticalAlign: "top" }}
+                                      rowSpan={(tp.equipment || []).length}>{tp.product_name}</td>
+                                    <td style={{ ...S.td, textAlign: "center", fontWeight: "700",
+                                      color: "#92400e", verticalAlign: "top" }}
+                                      rowSpan={(tp.equipment || []).length}>{tp.maco_mg}</td>
+                                  </>
+                                )}
+                                <td style={S.td}>{eq.name}</td>
+                                <td style={{ ...S.td, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>
+                                  {fmtGeo(eq.rinse_limit)}
+                                </td>
+                                <td style={{ ...S.td, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>
+                                  {fmtGeo(eq.swab_limit)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                      <div style={{ background: "#fffbeb", borderTop: "1px solid #fcd34d",
+                        padding: "8px 14px", display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: "700", fontSize: "11px", color: "#92400e" }}>Governing (most conservative):</span>
+                        <span style={{ fontSize: "12px" }}>
+                          Rinse: <strong style={{ color: "#1d4ed8" }}>{fmtGeo(imp.governing_rinse_limit)} ppm</strong>
+                          {imp.rinse_status && (
+                            <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "3px", fontSize: "10px",
+                              fontWeight: "bold", background: imp.rinse_status === "PASS" ? "#d4edda" : "#f8d7da",
+                              color: imp.rinse_status === "PASS" ? "#155724" : "#721c24" }}>
+                              {imp.rinse_status}
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: "12px" }}>
+                          Swab: <strong style={{ color: "#1d4ed8" }}>{fmtGeo(imp.governing_swab_limit)} ppm</strong>
+                          {imp.swab_status && (
+                            <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "3px", fontSize: "10px",
+                              fontWeight: "bold", background: imp.swab_status === "PASS" ? "#d4edda" : "#f8d7da",
+                              color: imp.swab_status === "PASS" ? "#155724" : "#721c24" }}>
+                              {imp.swab_status}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* § 7 Conclusion */}
+        <div style={S.section} className="doc-section">
+          <p style={S.sectionTitle}>7. Conclusion</p>
           {r.scenario === "fixed_10ppm" ? (
             <p style={S.para}>The cleaning limits for <strong>{r.source}</strong> ({r.source_category || "Intermediate/KSM"}) have been
               determined by applying the <strong>Fixed 10 ppm criterion</strong>, as MACO calculation is not required for
@@ -1303,9 +1477,9 @@ ${printRef.current.innerHTML}
           )}
         </div>
 
-        {/* § 7 Sampling Plan */}
+        {/* § 8 Sampling Plan */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>7. Swab Sampling Plan</p>
+          <p style={S.sectionTitle}>8. Swab Sampling Plan</p>
           <p style={S.para}>The following swab sampling locations are defined for each equipment category present in this
             protocol. All samples shall be collected after the cleaning procedure and before the next product manufacture.</p>
           {relevantPlan.length === 0
@@ -1539,9 +1713,89 @@ ${printRef.current.innerHTML}
           </div>
         </div>
 
-        {/* § 4 Training & Compliance */}
+        {/* § 4 Genotoxic / Nitrosamine Impurity Results */}
+        {(() => {
+          const geoRuns = results_data.geo_runs || [];
+          const geoImps = geoRuns[0]?.impurity_results || [];
+          if (geoImps.length === 0) return null;
+          const fG = (v) => { if (v == null) return "—"; if (v === 0) return "0"; if (v > 0 && v < 0.0001) return v.toExponential(3); return String(v); };
+          return (
+            <div style={S.section} className="doc-section">
+              <p style={S.sectionTitle}>4. Genotoxic / Nitrosamine Impurity Results</p>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "#92400e", color: "white" }}>
+                      <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "left", verticalAlign: "middle" }}>Impurity</th>
+                      <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "left", verticalAlign: "middle" }}>Sample Type</th>
+                      <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "center", verticalAlign: "middle" }}>Limit (ppm)</th>
+                      {geoRuns.map(run => (
+                        <th key={run.run_number} colSpan={3}
+                          style={{ ...sampCell, color: "white", textAlign: "center", borderLeft: "2px solid #d97706" }}>
+                          Run-{run.run_number}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr style={{ background: "#a16207", color: "white" }}>
+                      {geoRuns.map(run => (
+                        <React.Fragment key={run.run_number}>
+                          <th style={{ ...sampCell, color: "white", textAlign: "center", borderLeft: "2px solid #d97706", fontWeight: "normal" }}>Insp. Lot No.</th>
+                          <th style={{ ...sampCell, color: "white", textAlign: "center", fontWeight: "normal" }}>Result (ppm)</th>
+                          <th style={{ ...sampCell, color: "white", textAlign: "center", fontWeight: "normal" }}>Status</th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {geoImps.map((imp, impIdx) => (
+                      <React.Fragment key={impIdx}>
+                        <tr style={{ background: impIdx % 2 === 0 ? "white" : "#fffbf0" }}>
+                          <td rowSpan={2} style={{ ...sampCell, fontWeight: "600", verticalAlign: "middle",
+                            color: "#92400e", borderRight: "2px solid #fcd34d" }}>
+                            {imp.impurity_name}
+                            <div style={{ fontWeight: "normal", color: "#b45309", fontSize: "10px" }}>PDE: {imp.pde_ug_day} μg/day</div>
+                          </td>
+                          <td style={sampCell}>Rinse</td>
+                          <td style={{ ...sampCell, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>{fG(imp.governing_rinse_limit)}</td>
+                          {geoRuns.map((run, ri) => {
+                            const runImp = run.impurity_results[impIdx];
+                            const st = compareResultToLimit(runImp?.rinse_result_ppm, imp.governing_rinse_limit);
+                            return (
+                              <React.Fragment key={ri}>
+                                <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>{runImp?.rinse_lot_number || "—"}</td>
+                                <td style={{ ...sampCell, textAlign: "center" }}>{runImp?.rinse_result_ppm || "—"}</td>
+                                <td style={{ ...sampCell, textAlign: "center" }}>{statusBadge(st)}</td>
+                              </React.Fragment>
+                            );
+                          })}
+                        </tr>
+                        <tr style={{ background: impIdx % 2 === 0 ? "#fafafa" : "#fffbf0" }}>
+                          <td style={sampCell}>Swab</td>
+                          <td style={{ ...sampCell, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>{fG(imp.governing_swab_limit)}</td>
+                          {geoRuns.map((run, ri) => {
+                            const runImp = run.impurity_results[impIdx];
+                            const st = compareResultToLimit(runImp?.swab_result_ppm, imp.governing_swab_limit);
+                            return (
+                              <React.Fragment key={ri}>
+                                <td style={{ ...sampCell, textAlign: "center", borderLeft: "2px solid #e2e8f0" }}>{runImp?.swab_lot_number || "—"}</td>
+                                <td style={{ ...sampCell, textAlign: "center" }}>{runImp?.swab_result_ppm || "—"}</td>
+                                <td style={{ ...sampCell, textAlign: "center" }}>{statusBadge(st)}</td>
+                              </React.Fragment>
+                            );
+                          })}
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* § 5 Training & Compliance */}
         <div style={S.section} className="doc-section">
-          <p style={S.sectionTitle}>4. Training &amp; Compliance</p>
+          <p style={S.sectionTitle}>5. Training &amp; Compliance</p>
           <table style={S.dataTable}><tbody>
             <tr>
               <td style={{ ...S.tdKey, width: "180px" }}>Training Details</td>
@@ -1658,8 +1912,8 @@ ${printRef.current.innerHTML}
           )}
 
           {displayResult && (
-            <div style={{ background: "#c8cdd6", padding: "28px 0 40px", margin: "0 -20px" }}>
-              <div style={{ maxWidth: "794px", margin: "0 auto", padding: "0 16px" }}>
+            <div style={{ background: "#c8cdd6", padding: "28px 16px 40px", margin: "0 -20px", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: "100%", maxWidth: "794px" }}>
                 {renderProtocolDoc()}
               </div>
             </div>
@@ -1928,6 +2182,101 @@ ${printRef.current.innerHTML}
                     </div>
                   )}
 
+                  {/* Genotoxic / Nitrosamine Impurity Results */}
+                  {geoRunResults[0]?.impurity_results.length > 0 && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <p style={{ fontWeight: "700", color: "#92400e", fontSize: "13px", margin: "0 0 10px",
+                        borderBottom: "2px solid #fbbf24", paddingBottom: "6px" }}>
+                        Genotoxic / Nitrosamine Impurity Results
+                      </p>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                          <thead>
+                            <tr style={{ background: "#92400e", color: "white" }}>
+                              <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "left", verticalAlign: "middle" }}>Impurity</th>
+                              <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "left", verticalAlign: "middle" }}>Sample Type</th>
+                              <th rowSpan={2} style={{ ...sampCell, color: "white", textAlign: "center", verticalAlign: "middle" }}>Limit (ppm)</th>
+                              {runResults.map(run => (
+                                <th key={run.run_number} colSpan={3}
+                                  style={{ ...sampCell, color: "white", textAlign: "center", borderLeft: "2px solid #d97706" }}>
+                                  Run-{run.run_number}
+                                </th>
+                              ))}
+                            </tr>
+                            <tr style={{ background: "#a16207", color: "white" }}>
+                              {runResults.map(run => (
+                                <React.Fragment key={run.run_number}>
+                                  <th style={{ ...sampCell, color: "white", textAlign: "center", borderLeft: "2px solid #d97706", fontWeight: "normal" }}>Insp. Lot No.</th>
+                                  <th style={{ ...sampCell, color: "white", textAlign: "center", fontWeight: "normal" }}>Result (ppm)</th>
+                                  <th style={{ ...sampCell, color: "white", textAlign: "center", fontWeight: "normal" }}>Status</th>
+                                </React.Fragment>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {geoRunResults[0].impurity_results.map((imp, impIdx) => (
+                              <React.Fragment key={impIdx}>
+                                <tr style={{ background: impIdx % 2 === 0 ? "white" : "#fffbf0" }}>
+                                  <td rowSpan={2} style={{ ...sampCell, fontWeight: "600", verticalAlign: "middle",
+                                    color: "#92400e", borderRight: "2px solid #fcd34d" }}>
+                                    {imp.impurity_name}
+                                    <div style={{ fontWeight: "normal", color: "#b45309", fontSize: "10px" }}>PDE: {imp.pde_ug_day} μg/day</div>
+                                  </td>
+                                  <td style={sampCell}>Rinse</td>
+                                  <td style={{ ...sampCell, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>{fmtGeo(imp.governing_rinse_limit)}</td>
+                                  {geoRunResults.map((run, runIdx) => {
+                                    const runImp = run.impurity_results[impIdx];
+                                    const st = compareResultToLimit(runImp?.rinse_result_ppm, imp.governing_rinse_limit);
+                                    return (
+                                      <React.Fragment key={runIdx}>
+                                        <td style={{ ...sampCell, borderLeft: "2px solid #e2e8f0" }}>
+                                          <input placeholder="Lot No." value={runImp?.rinse_lot_number || ""}
+                                            onChange={e => handleGeoResultChange(runIdx, impIdx, "rinse_lot_number", e.target.value)}
+                                            style={{ width: "75px", padding: "3px", borderRadius: "4px", border: "1px solid #ccc", textAlign: "center", fontSize: "11px" }} />
+                                        </td>
+                                        <td style={sampCell}>
+                                          <input type="number" step="any" placeholder="—"
+                                            value={runImp?.rinse_result_ppm || ""}
+                                            onChange={e => handleGeoResultChange(runIdx, impIdx, "rinse_result_ppm", e.target.value)}
+                                            style={{ width: "65px", padding: "3px", borderRadius: "4px", border: "1px solid #ccc", textAlign: "center" }} />
+                                        </td>
+                                        <td style={{ ...sampCell, textAlign: "center" }}>{statusBadge(st)}</td>
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tr>
+                                <tr style={{ background: impIdx % 2 === 0 ? "#fafafa" : "#fffbf0" }}>
+                                  <td style={sampCell}>Swab</td>
+                                  <td style={{ ...sampCell, textAlign: "center", fontWeight: "700", color: "#1d4ed8" }}>{fmtGeo(imp.governing_swab_limit)}</td>
+                                  {geoRunResults.map((run, runIdx) => {
+                                    const runImp = run.impurity_results[impIdx];
+                                    const st = compareResultToLimit(runImp?.swab_result_ppm, imp.governing_swab_limit);
+                                    return (
+                                      <React.Fragment key={runIdx}>
+                                        <td style={{ ...sampCell, borderLeft: "2px solid #e2e8f0" }}>
+                                          <input placeholder="Lot No." value={runImp?.swab_lot_number || ""}
+                                            onChange={e => handleGeoResultChange(runIdx, impIdx, "swab_lot_number", e.target.value)}
+                                            style={{ width: "75px", padding: "3px", borderRadius: "4px", border: "1px solid #ccc", textAlign: "center", fontSize: "11px" }} />
+                                        </td>
+                                        <td style={sampCell}>
+                                          <input type="number" step="any" placeholder="—"
+                                            value={runImp?.swab_result_ppm || ""}
+                                            onChange={e => handleGeoResultChange(runIdx, impIdx, "swab_result_ppm", e.target.value)}
+                                            style={{ width: "65px", padding: "3px", borderRadius: "4px", border: "1px solid #ccc", textAlign: "center" }} />
+                                        </td>
+                                        <td style={{ ...sampCell, textAlign: "center" }}>{statusBadge(st)}</td>
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tr>
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Metadata */}
                   <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px", marginBottom: "20px" }}>
 
@@ -1951,7 +2300,7 @@ ${printRef.current.innerHTML}
                           type="date"
                           value={completionDate}
                           onChange={e => setCompletionDate(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}
                           style={S.input} />
                         <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>Date Run was completed</p>
                       </div>
@@ -2072,8 +2421,8 @@ ${printRef.current.innerHTML}
               {viewReportLoading ? (
                 <p style={{ color: "#888", padding: "24px" }}>Loading report…</p>
               ) : viewingReport.results_data ? (
-                <div style={{ background: "#c8cdd6", padding: "28px 0 40px", margin: "0 -20px" }}>
-                  <div style={{ maxWidth: "950px", margin: "0 auto", padding: "0 16px" }}>
+                <div style={{ background: "#c8cdd6", padding: "28px 16px 40px", margin: "0 -20px", display: "flex", justifyContent: "center" }}>
+                  <div style={{ width: "100%", maxWidth: "950px" }}>
                     {renderArchivedReport()}
                   </div>
                 </div>

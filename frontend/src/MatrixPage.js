@@ -260,7 +260,7 @@ function MatrixPage({ goHome, currentUser, role }) {
         ]);
       });
     });
-    exportCsv(`MACO_${result.source}_${new Date().toISOString().slice(0,10)}.csv`, cols, rows);
+    exportCsv(`MACO_${result.source}_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}.csv`, cols, rows);
   };
 
   const exportSummaryCsv = () => {
@@ -281,7 +281,7 @@ function MatrixPage({ goHome, currentUser, role }) {
       r.rinse_status_pde, r.rinse_status_dose, r.rinse_status_10ppm, r.rinse_status_final,
       r.swab_status_pde, r.swab_status_dose, r.swab_status_10ppm, r.swab_status_final
     ]);
-    exportCsv(`MACO_Summary_${new Date().toISOString().slice(0,10)}.csv`, cols, rows);
+    exportCsv(`MACO_Summary_${new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" })}.csv`, cols, rows);
   };
 
   const handlePrintDetailed = () => {

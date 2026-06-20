@@ -41,12 +41,24 @@ const faqGroups = [
     ],
   },
   {
-    group: "DEHT (Detergent Efficacy & Hold Time)",
+    group: "DEHT (Dirty Equipment Hold Time)",
     items: [
       { q: "What is a hold time in the context of DEHT?", a: "Hold time is the elapsed duration between the end of equipment use (last manufacturing activity) and the start of cleaning. It is compared to a defined maximum hold time limit. Exceeding the limit triggers a FAIL status." },
       { q: "What formulas are used to calculate DEHT acceptance limits?", a: "The system provides four formula options: 10 ppm (batch-size-based), 1/1000 Dose (therapeutic dose fraction), PDE/ADE (Permitted Daily Exposure), and NOEL (No-Observed-Effect Level). The active formula is set by an ADMIN in the Calculation Policy." },
       { q: "Can a DEHT protocol be submitted with a hold time FAIL?", a: "The system will allow submission, but the FAIL status is recorded and visible in the report. It is recommended to investigate and document a deviation before submitting." },
       { q: "Who can approve a DEHT protocol?", a: "QA or ADMIN role users. Approval is password-protected and permanently recorded with the approver's name and timestamp." },
+    ],
+  },
+  {
+    group: "Genotoxic / Nitrosamine Impurity",
+    items: [
+      { q: "What PDE unit does the system expect for genotoxic impurities?", a: "PDE must be entered in µg/day (micrograms per day), not mg/day. Genotoxic impurity PDEs are typically 1,000× smaller than conventional product PDEs. Using the wrong unit will produce incorrect limits." },
+      { q: "How is the genotoxic MACO calculated?", a: "MACO (mg) = (PDE µg/day × Min Batch Yield kg × 1,000) ÷ Max Daily Dose mg. The ×1,000 factor converts µg to mg so the result is in mg. This MACO is then used to derive equipment-level rinse and swab limits." },
+      { q: "Why are rinse limits shown in scientific notation?", a: "Genotoxic PDEs are very small, often producing limits below 0.0001 ppm. The system displays values below this threshold in scientific notation (e.g. 1.88e-6) to avoid showing a misleading zero." },
+      { q: "Which target products are included in the calculated limits?", a: "All products manufactured on the same equipment as the source product are included as target products. The most restrictive (lowest) limit across all target products governs for each piece of equipment." },
+      { q: "How does equipment selection in impurity mapping work?", a: "When adding or editing an impurity, select all equipment pieces that contact the source product. Limits are only calculated for the selected equipment. Equipment not selected will not show limits for that impurity." },
+      { q: "Can I enter genotoxic results even if some results are above the limit?", a: "Yes — the form allows entry regardless of result value. A FAIL badge appears automatically when a result exceeds the limit, but submission is not blocked. Document any out-of-limit results through your deviation management process." },
+      { q: "Are genotoxic results included in the archived report?", a: "Yes. When a report is submitted, genotoxic impurity results are frozen in the archive snapshot under §4 Genotoxic / Nitrosamine Impurity Results. The archived view is read-only and cannot be altered after approval." },
     ],
   },
   {
@@ -211,13 +223,11 @@ const sectionContent = {
             ["Protocol & Report", "Generates cleaning validation protocols and captures 3-cycle results"],
             ["Periodic CCV Protocol", "Manages periodic re-validation protocols and reports"],
             ["Continuous CCV", "Records ongoing post-validation cleaning monitoring runs"],
-            ["DEHT", "Verifies detergent efficacy and equipment hold times"],
+            ["DEHT", "Studies and verifies the dirty equipment hold time limits"],
             ["Life Cycle Management", "Tracks CCV schedule and product lifecycle compliance"],
-            ["Genotoxic Impurity", "ICH M7 and nitrosamine impurity risk assessment (coming soon)"],
+            ["Genotoxic Impurity", "ICH M7 / EMA nitrosamine impurity mapping, PDE-based limit calculation per equipment, and result entry in validation reports"],
             ["Audit Log", "Immutable record of every action performed in the system"],
-            ["Calculation Policy", "Admin-configurable MACO methodology governing all calculations"],
-            ["Data Retention", "Configures automatic archiving thresholds per data category"],
-            ["User Management", "Admin user account and role management"],
+            ["Admin Panel", "Centralised admin area: User Management, Calculation Policy, and Data Retention"],
           ].map(([mod, desc], i) => (
             <tr key={i} style={{ background: i % 2 === 1 ? "#f8fafc" : "white" }}>
               <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>{mod}</td>
@@ -402,6 +412,7 @@ const sectionContent = {
       <ul style={{ fontSize: 13, lineHeight: 2 }}>
         <li>A report covers <strong>3 cleaning cycles</strong>. Each cycle captures rinse and swab results per equipment.</li>
         <li>Results are compared against MACO limits; live <strong>PASS / FAIL</strong> badges appear as you type.</li>
+        <li>If genotoxic impurities are mapped for the product, a <strong>Genotoxic / Nitrosamine Impurity Results</strong> section appears automatically — enter Lot No. and Result (ppm) per impurity per run.</li>
         <li>Submit with password confirmation. Submitted reports appear in the report list.</li>
       </ul>
       <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Report Status Flow</h4>
@@ -444,7 +455,8 @@ const sectionContent = {
         <li>Select the <strong>Facility</strong> and <strong>Product</strong> to re-validate.</li>
         <li>Generate the periodic protocol — MACO is recalculated using current product data.</li>
         <li>Archive the protocol with a new document number / version.</li>
-        <li>Submit the 3-cycle validation report under the new protocol.</li>
+        <li>Submit the single-cycle validation report under the new protocol.</li>
+        <li>If genotoxic impurities are mapped, a <strong>Genotoxic / Nitrosamine Impurity Results</strong> section appears in the report form for result entry.</li>
         <li>QA/Admin approves the report, completing the periodic re-validation cycle.</li>
       </ol>
       <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Document Numbering</h4>
@@ -500,9 +512,8 @@ const sectionContent = {
   deht: (
     <>
       <p>
-        The <strong>DEHT (Detergent Efficacy & Hold Time)</strong> module validates two key aspects
-        of equipment cleaning: the time equipment can remain soiled before cleaning (hold time),
-        and the effectiveness of the detergent used (efficacy verification).
+        The <strong>DEHT (Dirty Equipment Hold Time)</strong> module validates and documents
+        the maximum allowable time that equipment can remain soiled (dirty) before cleaning must commence.
       </p>
       <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Hold Time Verification</h4>
       <ul style={{ fontSize: 13, lineHeight: 2 }}>
@@ -511,7 +522,7 @@ const sectionContent = {
         <li><strong>Hold Time Limit:</strong> The maximum permissible hold time defined in the protocol.</li>
         <li>A <span style={{ background: "#d4edda", color: "#155724", padding: "1px 8px", borderRadius: 4, fontWeight: "bold", fontSize: 12 }}>PASS</span> is assigned if actual hold time ≤ limit; otherwise <span style={{ background: "#f8d7da", color: "#721c24", padding: "1px 8px", borderRadius: 4, fontWeight: "bold", fontSize: 12 }}>FAIL</span>.</li>
       </ul>
-      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Efficacy Verification</h4>
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Cleaning Acceptance Results</h4>
       <ul style={{ fontSize: 13, lineHeight: 2 }}>
         <li>Captures rinse and swab results for each equipment piece.</li>
         <li>Results are compared against LOQ (Limit of Quantification) thresholds.</li>
@@ -572,32 +583,83 @@ const sectionContent = {
   genotoxic: (
     <>
       <p>
-        The <strong>Genotoxic and Nitrosamine Impurity</strong> module is currently under development.
-        When complete, it will provide tools for assessing acceptable impurity limits in accordance
-        with ICH M7 and EMA guidelines.
+        The <strong>Genotoxic / Nitrosamine Impurity</strong> module manages ICH M7 and EMA nitrosamine
+        impurity risk assessments. It maps impurities to source products and equipment, calculates
+        equipment-level rinse and swab acceptance limits, and integrates result entry into cleaning
+        validation and periodic CCV reports.
       </p>
-      <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: "14px 16px", marginBottom: 16 }}>
-        <strong>Module Status: Coming Soon</strong>
-        <p style={{ margin: "6px 0 0", fontSize: 13 }}>This module is under active development and will be released in a future update.</p>
-      </div>
-      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Planned Features</h4>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Workflow</h4>
+      <ol style={{ fontSize: 13, lineHeight: 2 }}>
+        <li>Select a <strong>Facility</strong> and <strong>Source Product</strong>.</li>
+        <li>Go to the <strong>Impurity Mapping</strong> tab and click <em>Add Impurity</em>.</li>
+        <li>Enter the impurity name, PDE (µg/day), analytical method, LOD, LOQ, and select the equipment it applies to.</li>
+        <li>Switch to the <strong>Calculated Limits</strong> tab — limits auto-calculate for every target product / equipment combination.</li>
+        <li>Limits flow automatically into the <strong>Protocol & Report</strong> and <strong>Periodic CCV</strong> report forms, where analysts enter rinse and swab results per run.</li>
+      </ol>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>MACO Formula for Genotoxic Impurities</h4>
       <table style={tableStyle}>
-        <thead><tr><th style={thStyle}>Feature</th><th style={thStyle}>Guideline</th></tr></thead>
+        <thead><tr><th style={thStyle}>Parameter</th><th style={thStyle}>Details</th></tr></thead>
         <tbody>
           {[
-            ["Genotoxic Impurity Risk Assessment", "ICH M7"],
-            ["Nitrosamine Impurity Evaluation (NDMA, NDEA, NMBA)", "EMA/409815/2020"],
-            ["TTC-Based Acceptable Intake Limits", "ICH M7 (1.5 µg/day TTC)"],
-            ["Compound-Specific AI Limits (Cohort of Concern)", "ICH M7 Annex"],
-            ["Nitrosamine Risk Assessment Report", "EMA/CHMP guidance"],
-            ["CPCA (Carcinogenic Potency Categorisation Approach)", "EMA 2022"],
-          ].map(([f, g], i) => (
+            ["Formula", "MACO (mg) = (PDE µg/day × Min Yield kg × 1,000) ÷ Max Daily Dose mg"],
+            ["PDE Unit", "µg/day (note: 1,000× smaller than product PDE which is mg/day)"],
+            ["Rinse Limit", "(MACO × 9 in²) ÷ (surface area in² × rinse volume L) → ppm"],
+            ["Swab Limit", "(MACO × 9 in² × 100) ÷ surface area in² → ppm"],
+            ["Precision", "Values rounded to 6 decimal places; values < 0.0001 ppm displayed in scientific notation"],
+          ].map(([p, d], i) => (
             <tr key={i} style={{ background: i % 2 === 1 ? "#f8fafc" : "white" }}>
-              <td style={{ ...tdStyle, fontWeight: 600 }}>{f}</td><td style={tdStyle}>{g}</td>
+              <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>{p}</td><td style={tdStyle}>{d}</td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Impurity Mapping Tab</h4>
+      <ul style={{ fontSize: 13, lineHeight: 2 }}>
+        <li>Lists all impurities mapped to the selected facility / product combination.</li>
+        <li><strong>Add / Edit / Delete</strong> impurities via modal dialogs (delete requires password confirmation).</li>
+        <li>Equipment multi-select: choose all pieces the impurity is relevant to for a given source product.</li>
+        <li>Analytical method, LOD, and LOQ are stored for traceability but do not affect limit calculations.</li>
+      </ul>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Calculated Limits Tab</h4>
+      <ul style={{ fontSize: 13, lineHeight: 2 }}>
+        <li>Limits are calculated for <strong>every target product</strong> manufactured on the same equipment — not just the mapped source product.</li>
+        <li>Each row shows: Target Product, MACO (mg), Equipment, Rinse Limit (ppm), Swab Limit (ppm), and PASS/FAIL vs. LOQ.</li>
+        <li>The <strong>governing limit</strong> (lowest across all target products per equipment) is used in the report form.</li>
+      </ul>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Result Entry in Reports</h4>
+      <p style={{ fontSize: 13 }}>
+        When genotoxic impurities are mapped for a product, a <strong>Genotoxic / Nitrosamine Impurity Results</strong> table
+        appears automatically in the cleaning validation report entry form (§4 of the archived report).
+        Each impurity shows governing rinse and swab limits, and analysts enter Inspection Lot No. and Result (ppm)
+        per run. Live <strong>PASS / FAIL</strong> badges appear as values are typed.
+        Results are saved with the report and frozen in the archive snapshot.
+      </p>
+
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Regulatory Basis</h4>
+      <table style={tableStyle}>
+        <thead><tr><th style={thStyle}>Guideline</th><th style={thStyle}>Application</th></tr></thead>
+        <tbody>
+          {[
+            ["ICH M7", "Genotoxic impurity assessment and TTC-based acceptable intakes"],
+            ["EMA/409815/2020", "Nitrosamine impurity risk evaluation (NDMA, NDEA, NMBA, etc.)"],
+            ["EMA 2022 CPCA", "Carcinogenic Potency Categorisation Approach for nitrosamines"],
+          ].map(([g, a], i) => (
+            <tr key={i} style={{ background: i % 2 === 1 ? "#f8fafc" : "white" }}>
+              <td style={{ ...tdStyle, fontWeight: 600 }}>{g}</td><td style={tdStyle}>{a}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p style={{ background: "#e8f0fe", border: "1px solid #c2d4f8", borderRadius: 6, padding: "8px 12px", fontSize: 13, marginTop: 12 }}>
+        <strong>Tip:</strong> Surface area and rinse volume must be configured on the Equipment page for rinse limits to calculate.
+        Swab limits can still be generated without a rinse volume.
+      </p>
     </>
   ),
 

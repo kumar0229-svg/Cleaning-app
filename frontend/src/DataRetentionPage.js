@@ -237,7 +237,7 @@ function RunModal({ categories, archivePath, onConfirm, onCancel, running }) {
 }
 
 // ── Main page ───────────────────────────────────────────────────────────────
-export default function DataRetentionPage({ goHome, currentUser }) {
+export default function DataRetentionPage({ goHome, currentUser, embedded }) {
   const [categories,   setCategories]   = useState([]);
   const [settings,     setSettings]     = useState({});
   const [autoCleanup,  setAutoCleanup]  = useState("false");
@@ -312,16 +312,16 @@ export default function DataRetentionPage({ goHome, currentUser }) {
   };
 
   if (loading) return (
-    <div style={pg.page}>
-      <button style={pg.back} onClick={goHome}>← Home</button>
-      <p style={{ color: "#666", marginTop: 40 }}>Loading retention policy…</p>
+    <div style={embedded ? {} : pg.page}>
+      {!embedded && <button style={pg.back} onClick={goHome}>← Home</button>}
+      <p style={{ color: "#666", marginTop: embedded ? 8 : 40 }}>Loading retention policy…</p>
     </div>
   );
 
   if (error) return (
-    <div style={pg.page}>
-      <button style={pg.back} onClick={goHome}>← Home</button>
-      <div style={{ marginTop: 40, background: "#fdf2f2", border: "1px solid #e74c3c",
+    <div style={embedded ? {} : pg.page}>
+      {!embedded && <button style={pg.back} onClick={goHome}>← Home</button>}
+      <div style={{ marginTop: embedded ? 0 : 40, background: "#fdf2f2", border: "1px solid #e74c3c",
         borderRadius: 8, padding: "18px 22px", color: "#c0392b" }}>
         <strong>Error:</strong> {error}
         <button style={{ marginLeft: 16, ...pg.btnGhost, fontSize: 12, padding: "4px 12px" }}
@@ -331,8 +331,8 @@ export default function DataRetentionPage({ goHome, currentUser }) {
   );
 
   return (
-    <div style={pg.page}>
-      <button style={pg.back} onClick={goHome}>← Home</button>
+    <div style={embedded ? {} : pg.page}>
+      {!embedded && <button style={pg.back} onClick={goHome}>← Home</button>}
 
       <div style={pg.header}>
         <div>

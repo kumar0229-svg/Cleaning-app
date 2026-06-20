@@ -46,7 +46,7 @@ const POLICY_DESCRIPTIONS = {
   },
 };
 
-function PolicyPage({ goHome, currentUser, role }) {
+function PolicyPage({ goHome, currentUser, role, embedded }) {
   const [currentPolicy, setCurrentPolicy] = useState(null);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [updatedBy, setUpdatedBy] = useState("");
@@ -183,22 +183,26 @@ function PolicyPage({ goHome, currentUser, role }) {
 
   if (loading) {
     return (
-      <div style={styles.page}>
-        <div style={styles.pageHeader}>
-          <h2 style={{ margin: 0 }}>Limit Calculation Policy</h2>
-          <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
-        </div>
+      <div style={embedded ? {} : styles.page}>
+        {!embedded && (
+          <div style={styles.pageHeader}>
+            <h2 style={{ margin: 0 }}>Limit Calculation Policy</h2>
+            <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
+          </div>
+        )}
         <p style={{ color: "#004f9f" }}>Loading policy...</p>
       </div>
     );
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={{ margin: 0 }}>Limit Calculation Policy</h2>
-        <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
-      </div>
+    <div style={embedded ? {} : styles.page}>
+      {!embedded && (
+        <div style={styles.header}>
+          <h2 style={{ margin: 0 }}>Limit Calculation Policy</h2>
+          <button onClick={goHome} style={styles.backBtn}>Back to Home</button>
+        </div>
+      )}
 
       {/* Backend not ready warning */}
       {loadError && (
@@ -347,7 +351,7 @@ function PolicyPage({ goHome, currentUser, role }) {
               </div>
             )}
           </div>
-          {(role === "ADMIN" || role === "QA") && (
+          {(role === "ADMIN" || role === "HEAD_QA" || role === "QA") && (
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <div>
                 <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#555", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
@@ -394,7 +398,7 @@ function PolicyPage({ goHome, currentUser, role }) {
               </div>
             )}
           </div>
-          {(role === "ADMIN" || role === "QA") && (
+          {(role === "ADMIN" || role === "HEAD_QA" || role === "QA") && (
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <div>
                 <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#555", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>

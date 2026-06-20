@@ -163,7 +163,7 @@ function LoginPage({ onLogin }) {
         </p>
 
         <p style={styles.footnote}>
-          Developed by Kumar
+          Developed by BMSQA
         </p>
 
         <p style={styles.version}>

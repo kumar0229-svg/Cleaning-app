@@ -3,7 +3,7 @@ import React from "react";
 function Footer() {
   return (
     <div style={styles.footer}>
-      Developed by Kumar
+      Developed by BMSQA
     </div>
   );
 }
