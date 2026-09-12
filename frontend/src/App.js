@@ -17,9 +17,9 @@ import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
 import DataRetentionPage from "./DataRetentionPage";
 import AdminPanelPage from "./AdminPanelPage";
-import logo from "./assets/cipla-logo.png";
 import Footer from "./Footer";
 import api from "./api";
+import { useLogo } from "./LogoContext";
 
 const icons = {
   /* Dashboard / bar chart */
@@ -217,6 +217,7 @@ const SESSION_PING_MS  =  5 * 1000;   // check session validity every 5 s for ne
 const PWD_EXPIRY_WARNING_DAYS = 7;
 
 function App() {
+  const { logoSrc } = useLogo();
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState("");
   const [role, setRole] = useState("");
@@ -455,7 +456,7 @@ function App() {
 
       {/* HEADER */}
       <div style={styles.header}>
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logoSrc} alt="Logo" style={styles.logo} />
         <span style={styles.headerText}>Cleaning Limit Software</span>
         <button style={styles.logout} onClick={logout}>Logout</button>
       </div>

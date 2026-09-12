@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function apiErr(e, fb = "An unexpected error occurred.") {
@@ -39,6 +39,7 @@ const EMPTY_FORM = {
 };
 
 export default function GenotoxicImpurityPage({ goHome, currentUser, role }) {
+  const { logoSrc } = useLogo();
   // ── Facility / Product selectors ─────────────────────────────────────────
   const [facilities,        setFacilities]        = useState([]);
   const [selectedFacility,  setSelectedFacility]  = useState("");
@@ -219,7 +220,7 @@ export default function GenotoxicImpurityPage({ goHome, currentUser, role }) {
       {/* Header */}
       <div style={S.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <img src={logo} alt="Cipla" style={{ width: "40px", filter: "brightness(0) invert(1)" }} />
+          <img src={logoSrc} alt="Logo" style={{ width: "40px", filter: "brightness(0) invert(1)" }} />
           <div>
             <h2 style={{ margin: 0, color: "white", fontSize: "18px" }}>Genotoxic &amp; Nitrosamine Impurity</h2>
             <p style={{ margin: 0, color: "rgba(255,255,255,0.8)", fontSize: "11px" }}>

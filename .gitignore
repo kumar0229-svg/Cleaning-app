@@ -12,6 +12,9 @@ backend/.env
 backend/logs/
 *.log
 
+# Uploaded assets (custom logo, etc.)
+backend/uploads/
+
 # Databases
 *.db
 

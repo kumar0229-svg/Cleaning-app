@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
 import Pagination from "./Pagination";
 import { exportCsv } from "./exportCsv";
+import { useLogo } from "./LogoContext";
 
 const PAGE_SIZE = 50;
 
@@ -24,6 +24,7 @@ function daysAgoStr(n) {
 }
 
 function AuditPage({ goHome, currentUser }) {
+  const { logoSrc } = useLogo();
   const [logs, setLogs]           = useState([]);
   const [loading, setLoading]     = useState(false);
   const [queried, setQueried]     = useState(false);
@@ -152,7 +153,7 @@ function AuditPage({ goHome, currentUser }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Cipla" />
+          <img src="${logoSrc}" alt="Logo" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>Audit Trail Report</p>

@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import UserManagementPage from "./UserManagementPage";
 import PolicyPage from "./PolicyPage";
 import DataRetentionPage from "./DataRetentionPage";
+import BrandingPage from "./BrandingPage";
 
 const ALL_TABS = [
   { key: "users",     label: "User Management", adminOnly: true },
   { key: "policy",    label: "Calculation Policy" },
   { key: "retention", label: "Data Retention" },
+  { key: "branding",  label: "App Logo",         adminOnly: true },
 ];
 
 function AdminPanelPage({ goHome, currentUser, role }) {
@@ -46,6 +48,9 @@ function AdminPanelPage({ goHome, currentUser, role }) {
         )}
         {activeTab === "retention" && (
           <DataRetentionPage goHome={goHome} currentUser={currentUser} embedded />
+        )}
+        {activeTab === "branding" && isAdmin && (
+          <BrandingPage embedded />
         )}
       </div>
 

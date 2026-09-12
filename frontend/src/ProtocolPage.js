@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 // Safely extract a string from any FastAPI error shape (string, Pydantic array, or object)
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {
@@ -49,6 +49,7 @@ function passFailBadge(val, loq) {
 }
 
 export default function ProtocolPage({ goHome, currentUser, role }) {
+  const { logoSrc } = useLogo();
 
   // ── Core state ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab]   = useState("protocol");
@@ -611,7 +612,7 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     if (!reportPrintRef.current) return;
     let logoDataUrl = "";
     try {
-      const res = await fetch(logo); const blob = await res.blob();
+      const res = await fetch(logoSrc); const blob = await res.blob();
       logoDataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
@@ -648,7 +649,7 @@ div{overflow:visible!important;max-width:100%}
 .fail-badge{background:#f8d7da!important;color:#721c24!important;font-weight:bold;padding:1pt 4pt;border-radius:2pt;font-size:7pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Cipla"/>
+  <img src="${logoDataUrl}" alt="Logo"/>
   <div class="rh-center">
     <p class="rh-title">Cleaning Validation Report</p>
     <p class="rh-sub">Archived Report — ${product_name}</p>
@@ -821,7 +822,7 @@ ${reportPrintRef.current.innerHTML}
     if (!printRef.current) return;
     let logoDataUrl = "";
     try {
-      const res = await fetch(logo); const blob = await res.blob();
+      const res = await fetch(logoSrc); const blob = await res.blob();
       logoDataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
@@ -862,7 +863,7 @@ div{overflow:visible!important;max-width:100%}
 .sample-num{font-family:'Courier New',monospace;font-weight:bold;color:#004f9f;font-size:8.5pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Cipla"/>
+  <img src="${logoDataUrl}" alt="Logo"/>
   <div class="rh-center">
     <p class="rh-title">Cleaning Validation Protocol</p>
     <p class="rh-sub">Cleaning Limit Calculation — MACO Methodology</p>
@@ -926,7 +927,7 @@ ${printRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Cipla" style={{ width: 70 }} />
+          <img src={logoSrc} alt="Logo" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
@@ -1668,7 +1669,7 @@ ${printRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Cipla" style={{ width: 70 }} />
+          <img src={logoSrc} alt="Logo" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>

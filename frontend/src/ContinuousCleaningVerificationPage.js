@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 const apiError = (e, fallback) =>
   e?.response?.data?.detail || e?.message || fallback;
@@ -25,6 +25,7 @@ function compareToLimit(result, limit) {
 }
 
 function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeader = false }) {
+  const { logoSrc } = useLogo();
   const [activeTab, setActiveTab] = useState("new");
 
   // ── Facility / product selection ─────────────────────────────────
@@ -405,7 +406,7 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeade
       .meta{background:#f0f4ff;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px}
       .footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between;color:#888;font-size:11px}
     </style></head><body>
-    <div class="hdr"><img src="${logo}" alt="Cipla"/>
+    <div class="hdr"><img src="${logoSrc}" alt="Logo"/>
       <div><h2>Continuous Cleaning Verification</h2>
       <p style="margin:3px 0 0;color:#555">Run ${viewingCCV.run_number} — ${viewingCCV.product_name} | ${viewingCCV.facility_name}</p>
       <p style="margin:2px 0 0;color:#555">Protocol: ${viewingCCV.doc_number||"—"} | Submitted by: ${viewingCCV.submitted_by}</p></div></div>
@@ -460,7 +461,7 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeade
               Routine post-validation monitoring — one run per report
             </p>
           </div>
-          <img src={logo} alt="Cipla" style={{ height: 40, marginLeft: "auto", filter: "brightness(0) invert(1)" }} />
+          <img src={logoSrc} alt="Logo" style={{ height: 40, marginLeft: "auto", filter: "brightness(0) invert(1)" }} />
         </div>
       )}
 
@@ -805,7 +806,7 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeade
                 ? <p style={{ color: "#888" }}>Loading…</p>
                 : viewingCCV.results_data && (
                   <div ref={printRef}>
-                    {renderCCVDetail(viewingCCV, currentUser, logo)}
+                    {renderCCVDetail(viewingCCV, currentUser, logoSrc)}
                   </div>
                 )
               }
@@ -879,7 +880,7 @@ function renderCCVDetail(ccv, currentUser, logoSrc) {
 
       {/* Cover */}
       <div style={{ display: "flex", alignItems: "center", borderBottom: "3px solid #004f9f", paddingBottom: "16px", marginBottom: "20px" }}>
-        <img src={logoSrc} alt="Cipla" style={{ height: 50, marginRight: 20 }} />
+        <img src={logoSrc} alt="Logo" style={{ height: 50, marginRight: 20 }} />
         <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0, color: "#004f9f" }}>Continuous Cleaning Verification</h2>
           <p style={{ margin: "4px 0 0", color: "#555", fontSize: "13px" }}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 function apiError(e, fallback = "An unexpected error occurred. Please try again.") {
   const detail = e?.response?.data?.detail;
@@ -86,6 +86,7 @@ const FORMULA_TEXT = {
 };
 
 export default function DEHTPage({ goHome, currentUser, role }) {
+  const { logoSrc } = useLogo();
 
   // ── Core state ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab]       = useState("protocol");
@@ -651,7 +652,7 @@ export default function DEHTPage({ goHome, currentUser, role }) {
     if (!printRef.current) return;
     let logoDataUrl = "";
     try {
-      const res = await fetch(logo); const blob = await res.blob();
+      const res = await fetch(logoSrc); const blob = await res.blob();
       logoDataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
@@ -681,7 +682,7 @@ img{max-width:70pt;max-height:26pt}p{margin:0 0 5pt}
 .sig-grid-print{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:20pt!important;padding:10pt 0!important;margin-top:10pt!important;break-inside:avoid}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Cipla"/>
+  <img src="${logoDataUrl}" alt="Logo"/>
   <div class="rh-center">
     <p class="rh-title">Dirty Equipment Hold Time (DEHT) Study Protocol</p>
     <p class="rh-sub">Cleaning Validation — DEHT Protocol</p>
@@ -708,7 +709,7 @@ ${printRef.current.innerHTML}
     if (!reportPrintRef.current) return;
     let logoDataUrl = "";
     try {
-      const res = await fetch(logo); const blob = await res.blob();
+      const res = await fetch(logoSrc); const blob = await res.blob();
       logoDataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result);
@@ -739,7 +740,7 @@ tr:nth-child(even) td{background:#f5f8fc!important}
 img{max-width:70pt;max-height:24pt}p{margin:0 0 5pt}
 </style></head><body>
 <div class="rh">
-  <img src="${logoDataUrl}" alt="Cipla"/>
+  <img src="${logoDataUrl}" alt="Logo"/>
   <div class="rh-center">
     <p class="rh-title">Dirty Equipment Hold Time (DEHT) Study Report</p>
     <p class="rh-sub">DEHT Report — ${product_name}</p>
@@ -815,7 +816,7 @@ ${reportPrintRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Cipla" style={{ width: 70 }} />
+          <img src={logoSrc} alt="Logo" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
@@ -1407,7 +1408,7 @@ ${reportPrintRef.current.innerHTML}
 
         {/* Doc header */}
         <div style={S.docHeader} className="doc-header">
-          <img src={logo} alt="Cipla" style={{ width: 70 }} />
+          <img src={logoSrc} alt="Logo" style={{ width: 70 }} />
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>

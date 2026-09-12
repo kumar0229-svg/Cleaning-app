@@ -3,7 +3,6 @@ import React from "react";
 function Footer() {
   return (
     <div style={styles.footer}>
-      Developed by BMSQA
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import logo from "./assets/cipla-logo.png";
 import api from "./api";
+import { useLogo } from "./LogoContext";
 
 const APP_VERSION = process.env.REACT_APP_VERSION || "0.3.0";
 
 function LoginPage({ onLogin }) {
+  const { logoSrc } = useLogo();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -87,7 +88,7 @@ function LoginPage({ onLogin }) {
     <div style={styles.container}>
       <div style={styles.card}>
 
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logoSrc} alt="Logo" style={styles.logo} />
 
         <h2 style={styles.title}>
           Cleaning Limit Software
@@ -160,10 +161,6 @@ function LoginPage({ onLogin }) {
           <button type="button" onClick={openForgot} style={styles.forgotLink}>
             Forgot Password?
           </button>
-        </p>
-
-        <p style={styles.footnote}>
-          Developed by BMSQA
         </p>
 
         <p style={styles.version}>

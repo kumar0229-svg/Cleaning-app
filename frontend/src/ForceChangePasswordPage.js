@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import logo from "./assets/cipla-logo.png";
 import api from "./api";
+import { useLogo } from "./LogoContext";
 
 const RULES = [
   { key: "len",     label: "At least 8 characters",          test: p => p.length >= 8 },
@@ -27,6 +27,7 @@ function PasswordRules({ password }) {
 }
 
 function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
+  const { logoSrc } = useLogo();
   const [newPassword, setNewPassword]         = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew]                 = useState(false);
@@ -60,7 +61,7 @@ function ForceChangePasswordPage({ currentUser, onPasswordChanged, onLogout }) {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <img src={logo} alt="Cipla" style={styles.logo} />
+        <img src={logoSrc} alt="Logo" style={styles.logo} />
         <h2 style={styles.title}>Set New Password</h2>
         <p style={styles.subtitle}>
           Welcome, <strong>{currentUser}</strong>. You must set a new password before continuing.

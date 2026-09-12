@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ import bcrypt as _bcrypt
 import uuid
 import json
 import os
+import glob
 import time
 import datetime
 import logging
@@ -390,6 +392,21 @@ def startup():
             if not db.query(EquipmentCategory).filter(EquipmentCategory.category_name == name).first():
                 db.add(EquipmentCategory(category_name=name))
         db.commit()
+    finally:
+        db.close()
+
+    # Seed default admin user (idempotent — skipped if any admin already exists)
+    db = SessionLocal()
+    try:
+        if not db.query(User).filter(User.role == "ADMIN").first():
+            db.add(User(
+                username="admin",
+                password=hash_password("Admin@123"),
+                role="ADMIN",
+                force_password_reset=True,
+            ))
+            db.commit()
+            logger.info("Default admin user seeded (username: admin, password: Admin@123) — change on first login.")
     finally:
         db.close()
 
@@ -2414,6 +2431,72 @@ def update_security_policy(
     log_audit(db, "UPDATE", "SYSTEM_CONFIG", "security_policy",
               "security_policy", "", str(updates), current_user.username)
     return {"message": "Security policy updated ✅"}
+
+# ===================================================
+# BRANDING (custom app logo)
+# ===================================================
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+_LOGO_MIME_EXT  = {"image/png": "png", "image/jpeg": "jpg", "image/svg+xml": "svg", "image/webp": "webp"}
+_LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
+def _current_logo_file():
+    matches = glob.glob(os.path.join(UPLOAD_DIR, "logo.*"))
+    return matches[0] if matches else None
+
+@app.get("/branding")
+def get_branding():
+    """Public — the login page needs this before the user is authenticated."""
+    path = _current_logo_file()
+    return {"has_custom_logo": bool(path), "version": int(os.path.getmtime(path)) if path else None}
+
+@app.get("/branding/logo")
+def get_branding_logo():
+    """Public — serves the currently uploaded logo file, if any."""
+    path = _current_logo_file()
+    if not path:
+        raise HTTPException(status_code=404, detail="No custom logo set")
+    return FileResponse(path)
+
+@app.post("/branding/logo")
+async def upload_branding_logo(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    ext = _LOGO_MIME_EXT.get(file.content_type)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Unsupported image type. Use PNG, JPEG, SVG, or WEBP.")
+    contents = await file.read()
+    if len(contents) > _LOGO_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Logo file too large (max 2 MB).")
+
+    for old in glob.glob(os.path.join(UPLOAD_DIR, "logo.*")):
+        os.remove(old)
+    dest = os.path.join(UPLOAD_DIR, f"logo.{ext}")
+    with open(dest, "wb") as f:
+        f.write(contents)
+
+    log_audit(db, "UPDATE", "SYSTEM", 0, "app_logo", "(previous logo)", file.filename, current_user.username)
+    logger.info(f"App logo updated by {current_user.username} ({file.filename}, {len(contents)} bytes)")
+    return {"message": "Logo updated successfully ✅", "version": int(os.path.getmtime(dest))}
+
+@app.delete("/branding/logo")
+def reset_branding_logo(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["ADMIN"])
+    removed = False
+    for old in glob.glob(os.path.join(UPLOAD_DIR, "logo.*")):
+        os.remove(old)
+        removed = True
+    if removed:
+        log_audit(db, "DELETE", "SYSTEM", 0, "app_logo", "(custom logo)", "(default placeholder)", current_user.username)
+        logger.info(f"App logo reset to default placeholder by {current_user.username}")
+    return {"message": "Logo reset to default placeholder ✅"}
 
 # ===================================================
 # UNLOCK USER (admin clears lockout)

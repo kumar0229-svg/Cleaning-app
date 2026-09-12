@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 const tableStyle = { borderCollapse: "collapse", width: "100%", fontSize: 13 };
 const thStyle = { padding: "8px 10px", textAlign: "left", border: "1px solid #ddd", background: "#004f9f", color: "white" };
@@ -817,6 +817,7 @@ const sectionContent = {
 
 // ── Main Component ──────────────────────────────────────────────────────────
 function HelpPage({ goHome }) {
+  const { logoSrc } = useLogo();
   const [active, setActive] = useState("overview");
   const [search, setSearch] = useState("");
 
@@ -830,7 +831,7 @@ function HelpPage({ goHome }) {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.headerRow}>
-        <img src={logo} alt="Cipla" style={{ height: 36, marginRight: 10, filter: "brightness(0) invert(1)" }} />
+        <img src={logoSrc} alt="Logo" style={{ height: 36, marginRight: 10, filter: "brightness(0) invert(1)" }} />
         <span style={{ color: "white", fontWeight: "bold", fontSize: 17, flex: 1 }}>Help &amp; User Guide</span>
         <button style={styles.backBtn} onClick={goHome}>← Back to Home</button>
       </div>

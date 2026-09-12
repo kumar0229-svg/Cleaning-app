@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
 import Pagination from "./Pagination";
+import { useLogo } from "./LogoContext";
 
 const PAGE_SIZE = 20;
 
 function EquipmentPage({ goHome, currentUser }) {
+  const { logoSrc } = useLogo();
   const [facilityId, setFacilityId] = useState("");
   const [equipmentName, setEquipmentName] = useState("");
   const [area, setArea] = useState("");
@@ -249,7 +250,7 @@ function EquipmentPage({ goHome, currentUser }) {
       </style></head>
       <body>
         <div class="header">
-          <img src="${logo}" alt="Cipla" />
+          <img src="${logoSrc}" alt="Logo" />
           <div class="header-text">
             <h2>Cleaning Limit Software</h2>
             <p>Equipment Master Report</p>

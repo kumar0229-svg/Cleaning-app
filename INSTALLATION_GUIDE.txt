@@ -1,0 +1,308 @@
+================================================================================
+  CLEANING CARRYOVER APP - LOCAL INSTALLATION GUIDE (Windows)
+  Version 0.3.0
+================================================================================
+
+OVERVIEW
+--------
+This app has two parts:
+  1. Backend  - Python (FastAPI) running on port 8000
+  2. Frontend - React (Node.js) running on port 3000
+
+Both parts communicate through the browser on http://localhost:3000
+
+
+================================================================================
+STEP 1: COPY FILES FROM PENDRIVE
+================================================================================
+
+1. Plug in the pendrive.
+2. Copy the entire "cleaning-carryover-app" folder to a local drive on the PC.
+   Example destination: C:\Apps\cleaning-carryover-app
+
+   IMPORTANT: Do NOT run the app directly from the pendrive. Copy it first.
+
+
+================================================================================
+STEP 2: INSTALL PREREQUISITES
+================================================================================
+
+You need the following software installed on the target PC before proceeding.
+If the PC already has these, skip to Step 3.
+
+--- 2A. Python 3.11 or later ---
+  Download from: https://www.python.org/downloads/
+  During installation:
+    - Check "Add Python to PATH"  <-- IMPORTANT
+    - Check "Install pip"
+
+  Verify after install (open Command Prompt):
+    python --version
+    pip --version
+
+--- 2B. Node.js 18 or later ---
+  Download from: https://nodejs.org/
+  Use the LTS (Long Term Support) version.
+
+  Verify after install:
+    node --version
+    npm --version
+
+--- 2C. PostgreSQL 14 or later ---
+  Download from: https://www.postgresql.org/download/windows/
+  During installation:
+    - Remember the password you set for the "postgres" user
+    - Default port: 5432 (keep as is)
+    - Default superuser: postgres
+
+  Verify after install (open pgAdmin or psql):
+    - pgAdmin should open and connect to localhost
+
+
+================================================================================
+STEP 3: CREATE THE DATABASE
+================================================================================
+
+1. Open pgAdmin (installed with PostgreSQL) or open Command Prompt and run:
+   psql -U postgres
+
+2. Create a new database named "cleaning_db":
+
+   In pgAdmin:
+     - Right-click "Databases" > Create > Database
+     - Name: cleaning_db
+     - Click Save
+
+   OR in psql terminal:
+     CREATE DATABASE cleaning_db;
+     \q
+
+3. Note down your PostgreSQL password (you set this during installation).
+
+
+================================================================================
+STEP 4: CONFIGURE THE BACKEND
+================================================================================
+
+1. Open the file:
+   <your-folder>\backend\.env
+
+2. Edit the DATABASE_URL line to match your PostgreSQL password:
+
+   DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/cleaning_db
+
+   Example (if your password is "admin123"):
+   DATABASE_URL=postgresql://postgres:admin123@localhost:5432/cleaning_db
+
+   NOTE: If your password contains special characters like @, #, !, etc.,
+   they must be URL-encoded. Common replacements:
+     @  becomes  %40
+     #  becomes  %23
+     !  becomes  %21
+     $  becomes  %24
+
+   Example (if your password is "pass@word"):
+   DATABASE_URL=postgresql://postgres:pass%40word@localhost:5432/cleaning_db
+
+3. Save and close the .env file.
+
+
+================================================================================
+STEP 5: SET UP THE BACKEND (Python Virtual Environment)
+================================================================================
+
+Open Command Prompt and navigate to the backend folder:
+
+  cd C:\Apps\cleaning-carryover-app\backend
+
+5A. Create a new virtual environment:
+
+  python -m venv venv
+
+5B. Activate the virtual environment:
+
+  venv\Scripts\activate
+
+  (You will see "(venv)" appear at the start of the command prompt line)
+
+5C. Install all required Python packages:
+
+  pip install -r requirements.txt
+
+  (This may take a few minutes)
+
+5D. Run database migrations to create all tables:
+
+  alembic upgrade head
+
+  You should see output like:
+    INFO  [alembic.runtime.migration] Running upgrade ...
+    INFO  [alembic.runtime.migration] Running upgrade ... -> c8f7e9e86b3b, initial schema
+
+
+================================================================================
+STEP 6: SET UP THE FRONTEND (Node.js)
+================================================================================
+
+Open a NEW Command Prompt window and navigate to the frontend folder:
+
+  cd C:\Apps\cleaning-carryover-app\frontend
+
+Install all required Node packages:
+
+  npm install
+
+  (This may take a few minutes and will create a "node_modules" folder)
+
+
+================================================================================
+STEP 7: START THE APPLICATION
+================================================================================
+
+You need TWO Command Prompt windows open simultaneously - one for backend,
+one for frontend.
+
+--- WINDOW 1: Start the Backend ---
+
+  cd C:\Apps\cleaning-carryover-app\backend
+  venv\Scripts\activate
+  python -m uvicorn main:app --workers 4 --host 0.0.0.0 --port 8000
+
+  OR simply double-click:
+  C:\Apps\cleaning-carryover-app\backend\start_backend.bat
+
+  Wait until you see:
+    INFO:     Uvicorn running on http://0.0.0.0:8000
+
+
+--- WINDOW 2: Start the Frontend ---
+
+  cd C:\Apps\cleaning-carryover-app\frontend
+  npm start
+
+  OR simply double-click:
+  C:\Apps\cleaning-carryover-app\frontend\start_frontend.bat
+
+  Wait until you see:
+    Compiled successfully!
+    Local: http://localhost:3000
+
+
+================================================================================
+STEP 8: ACCESS THE APPLICATION
+================================================================================
+
+Open any web browser (Chrome recommended) and go to:
+
+  http://localhost:3000
+
+You should see the Cipla Cleaning Validation app login page.
+
+
+================================================================================
+STEP 9: FIRST-TIME ADMIN LOGIN
+================================================================================
+
+A default admin account is automatically created the first time the backend
+starts on a fresh database. Use these credentials to log in:
+
+  Username: admin
+  Password: Admin@123
+
+IMPORTANT: You will be forced to change this password immediately on first
+login. Choose a strong password (8+ chars, uppercase, lowercase, digit,
+special character e.g. Admin@NewPass1!)
+
+After changing the password, you can create additional users from the
+Admin Panel inside the app.
+
+
+================================================================================
+STARTING THE APP ON FUTURE OCCASIONS
+================================================================================
+
+Every time you want to use the app, you only need to do STEP 7:
+- Double-click start_backend.bat  (in the backend folder)
+- Double-click start_frontend.bat (in the frontend folder)
+- Open browser at http://localhost:3000
+
+The database retains all data between sessions.
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "python is not recognized as a command"
+SOLUTION: Python is not in PATH. Re-install Python and check "Add to PATH".
+
+PROBLEM: "npm is not recognized as a command"
+SOLUTION: Node.js is not installed or not in PATH. Re-install Node.js (LTS).
+
+PROBLEM: Backend fails with "could not connect to server" (PostgreSQL error)
+SOLUTION:
+  1. Make sure PostgreSQL service is running.
+     Open Services (Win+R > services.msc) > find "postgresql" > Start
+  2. Check the password in backend\.env matches your PostgreSQL password.
+
+PROBLEM: "alembic upgrade head" fails
+SOLUTION:
+  1. Make sure the virtual environment is activated (see "(venv)" in prompt).
+  2. Make sure cleaning_db database exists in PostgreSQL.
+  3. Make sure the DATABASE_URL in .env has the correct password.
+
+PROBLEM: Frontend starts but shows API errors or blank page
+SOLUTION:
+  1. Make sure the backend is running first (port 8000).
+  2. Check the backend Command Prompt window for error messages.
+
+PROBLEM: Port 8000 or 3000 already in use
+SOLUTION: The start_backend.bat and start_frontend.bat automatically kill
+  any existing process on those ports before starting. Use those .bat files
+  instead of running commands manually.
+
+PROBLEM: "Module not found" errors in backend
+SOLUTION: The virtual environment may not be set up correctly.
+  Delete the "venv" folder inside "backend" and redo Step 5.
+
+PROBLEM: npm install fails with network errors
+SOLUTION: The target PC needs internet access for npm install (Step 6).
+  If no internet available, copy the "node_modules" folder from the
+  pendrive alongside the project (the folder must be from the same machine
+  or same OS architecture).
+
+
+================================================================================
+FOLDER STRUCTURE REFERENCE
+================================================================================
+
+cleaning-carryover-app\
+  backend\
+    main.py              -- Main application entry point
+    requirements.txt     -- Python package list
+    .env                 -- Database and JWT configuration
+    alembic.ini          -- Database migration config
+    migrations\          -- Database schema migration scripts
+    venv\                -- Python virtual environment (created in Step 5)
+    start_backend.bat    -- Quick-start script for backend
+  frontend\
+    package.json         -- Node.js package list
+    src\                 -- React source code
+    node_modules\        -- Node packages (created in Step 6)
+    start_frontend.bat   -- Quick-start script for frontend
+
+
+================================================================================
+PORTS USED BY THIS APPLICATION
+================================================================================
+
+  Port 3000  - Frontend (React web interface)
+  Port 8000  - Backend  (FastAPI REST API)
+  Port 5432  - PostgreSQL (database, local only)
+
+Make sure these ports are not blocked by firewall or antivirus software.
+
+
+================================================================================
+END OF INSTALLATION GUIDE
+================================================================================

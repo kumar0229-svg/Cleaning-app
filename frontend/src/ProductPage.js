@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "./api";
-import logo from "./assets/cipla-logo.png";
+import { useLogo } from "./LogoContext";
 
 // ─── WHO ATC Classification (Level 1) ─────────────────────────────────────────
 const ATC_DEFAULT = [
@@ -64,6 +64,7 @@ const NON_API_STEPS = [
 const BLANK_SYNTH = { step_name: "", iupac_name: "", soluble_solvent: "", solubility_usp: "", analytical_method: "", lod_ppm: "", loq_ppm: "" };
 
 function ProductPage({ goHome, currentUser }) {
+  const { logoSrc } = useLogo();
 
   // ─── Tab ──────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("add");
@@ -1036,7 +1037,7 @@ function ProductPage({ goHome, currentUser }) {
       tr:nth-child(even){background:#f8fafc;}
       .footer{margin-top:30px;border-top:1px solid #ccc;padding-top:10px;display:flex;justify-content:space-between;color:#888;font-size:11px;}
       </style></head><body>
-      <div class="header"><img src="${logo}" alt="Cipla" />
+      <div class="header"><img src="${logoSrc}" alt="Logo" />
         <div class="header-text"><h2>Cleaning Limit Software</h2>
           <p>Product Master Report</p><p>Generated: ${new Date().toLocaleString("en-IN")}</p></div></div>
       ${printRef.current.innerHTML}
