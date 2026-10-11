@@ -180,6 +180,7 @@ const navGroups = [
       { id: "ccv",         icon: "✅", title: "Continuous CCV" },
       { id: "deht",        icon: "🧴", title: "DEHT" },
       { id: "lifecycle",   icon: "📅", title: "Life Cycle Management" },
+      { id: "impactassessment", icon: "📝", title: "Impact Assessment" },
     ],
   },
   {
@@ -225,6 +226,7 @@ const sectionContent = {
             ["Continuous CCV", "Records ongoing post-validation cleaning monitoring runs"],
             ["DEHT", "Studies and verifies the dirty equipment hold time limits"],
             ["Life Cycle Management", "Tracks CCV schedule and product lifecycle compliance"],
+            ["Impact Assessment", "Documents, per QMS/change-control reference, the impact of a product change on ongoing and completed validation records, with recommendations"],
             ["Genotoxic Impurity", "ICH M7 / EMA nitrosamine impurity mapping, PDE-based limit calculation per equipment, and result entry in validation reports"],
             ["Audit Log", "Immutable record of every action performed in the system"],
             ["Admin Panel", "Centralised admin area: User Management, Calculation Policy, and Data Retention"],
@@ -576,6 +578,26 @@ const sectionContent = {
       </ul>
       <p style={{ background: "#e8f0fe", border: "1px solid #c2d4f8", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>
         <strong>Tip:</strong> Use Life Cycle Management as your daily dashboard for ongoing validation compliance — it shows what needs attention across all products at a glance.
+      </p>
+    </>
+  ),
+
+  impactassessment: (
+    <>
+      <p>
+        The <strong>Impact Assessment</strong> page is where a change to a product — a new product
+        introduction, an equipment mapping change, a dose/limit revision, or any other factor — is
+        documented against a <strong>QMS / change-control reference number</strong>, along with its
+        impact on that product's existing validation records.
+      </p>
+      <h4 style={{ margin: "14px 0 8px", color: "#004f9f" }}>Creating an Assessment</h4>
+      <ul style={{ fontSize: 13, lineHeight: 2 }}>
+        <li>Click <strong>+ New Impact Assessment</strong>, select the affected product, and enter the QMS reference number and change category.</li>
+        <li>The form pulls in that product's existing <strong>Protocols, Reports, CCV runs, and DEHT reports</strong>, each shown with its current status (Draft / Submitted / Approved / Completed).</li>
+        <li>Check the records that are affected by the change, then document the <strong>impact</strong> (e.g. on ongoing validation, or on a completed validation's limits/results) and a <strong>recommendation</strong> for each one.</li>
+      </ul>
+      <p style={{ background: "#e8f0fe", border: "1px solid #c2d4f8", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>
+        <strong>Tip:</strong> Every assessment is logged to the Audit Trail, so there's a permanent record of who documented the impact and when.
       </p>
     </>
   ),

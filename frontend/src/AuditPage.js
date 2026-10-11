@@ -222,7 +222,7 @@ function AuditPage({ goHome, currentUser }) {
           </div>
 
           <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>
-            <button onClick={loadLogs} disabled={!!dateError} style={dateError ? styles.refreshBtnDisabled : styles.refreshBtn}>Query</button>
+            <button onClick={loadLogs} disabled={!!dateError} style={dateError ? styles.refreshBtnDisabled : styles.refreshBtn}>Find</button>
             <button onClick={clearFilters} style={styles.clearBtn}>Clear</button>
             <button onClick={handleExportCsv} style={styles.csvBtn}>Export CSV</button>
             <button onClick={handlePrint} style={styles.printBtn}>Print PDF</button>
@@ -270,7 +270,7 @@ function AuditPage({ goHome, currentUser }) {
         <p style={{ color: "#004f9f" }}>Loading audit logs...</p>
       ) : !queried ? (
         <div style={styles.emptyState}>
-          <p style={{ margin: 0, fontSize: "15px", color: "#555" }}>Set your filters and click <strong>Query</strong> to view audit logs.</p>
+          <p style={{ margin: 0, fontSize: "15px", color: "#555" }}>Set your filters and click <strong>Find</strong> to view audit logs.</p>
           <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#aaa" }}>Maximum 30 days per query.</p>
         </div>
       ) : filtered.length === 0 ? (

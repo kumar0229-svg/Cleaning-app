@@ -15,6 +15,7 @@ import LifeCycleManagementPage from "./LifeCycleManagementPage";
 import DashboardPage from "./DashboardPage";
 import CCVProtocolPage from "./CCVProtocolPage";
 import GenotoxicImpurityPage from "./GenotoxicImpurityPage";
+import ImpactAssessmentPage from "./ImpactAssessmentPage";
 import DataRetentionPage from "./DataRetentionPage";
 import AdminPanelPage from "./AdminPanelPage";
 import Footer from "./Footer";
@@ -205,6 +206,18 @@ const icons = {
       <rect x="3" y="4" width="6" height="3" rx="1"/>
       <rect x="9" y="17" width="6" height="3" rx="1"/>
       <rect x="15" y="4" width="6" height="3" rx="1"/>
+    </svg>
+  ),
+  /* Impact Assessment / document with alert badge */
+  impactassessment: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width:26,height:26}}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8" y1="13" x2="12" y2="13"/>
+      <line x1="8" y1="17" x2="10" y2="17"/>
+      <circle cx="17.5" cy="16.5" r="3.5" fill="#fff8e1" stroke="currentColor"/>
+      <line x1="17.5" y1="14.8" x2="17.5" y2="16.7"/>
+      <circle cx="17.5" cy="18.3" r="0.15" fill="currentColor" stroke="currentColor"/>
     </svg>
   ),
 };
@@ -421,6 +434,7 @@ function App() {
   if (page === "lifecycle") return <>{offlineBanner}{warningOverlay}<LifeCycleManagementPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "ccvprotocol") return <>{offlineBanner}{warningOverlay}<CCVProtocolPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
   if (page === "genotoxic") return <>{offlineBanner}{warningOverlay}<GenotoxicImpurityPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
+  if (page === "impactassessment") return <>{offlineBanner}{warningOverlay}<ImpactAssessmentPage goHome={() => navigate("home")} currentUser={user} role={role} /><Footer /></>;
 
   const cards = [
     { key: "dashboard",   label: "Dashboard",                                        color: "#e0f2fe" },
@@ -431,6 +445,7 @@ function App() {
     { key: "protocol",    label: "Cleaning Validation Protocol & Report",             color: "#e8f5e9" },
     { key: "ccvprotocol", label: "Periodic Cleaning Validation Protocol & Report",   color: "#ecfdf5" },
     { key: "lifecycle",   label: "Life Cycle Management",                             color: "#f0ebfb" },
+    { key: "impactassessment", label: "Impact Assessment",                          color: "#fef9e7" },
     { key: "genotoxic",   label: "Genotoxic and Nitrosamine Impurity",               color: "#fff0f0" },
     { key: "audit",       label: "Audit",                                             color: "#fde8e8" },
     { key: "query",       label: "Query",                                             color: "#e2f4fb" },

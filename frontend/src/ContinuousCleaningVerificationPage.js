@@ -736,12 +736,12 @@ function ContinuousCleaningVerificationPage({ goHome, currentUser, role, noHeade
                     {viewProducts.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name}</option>)}
                   </select>
                 </div>
-                <button onClick={loadCCVList} style={S.queryBtn}>Query</button>
+                <button onClick={loadCCVList} style={S.queryBtn}>Find</button>
               </div>
 
               {listLoading ? <p style={{ color: "#888" }}>Loading…</p>
                 : ccvList.length === 0
-                  ? <p style={{ color: "#888", fontStyle: "italic" }}>No CCV runs found. Click Query to load.</p>
+                  ? <p style={{ color: "#888", fontStyle: "italic" }}>No CCV runs found. Click Find to load.</p>
                   : (
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <thead>

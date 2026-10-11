@@ -39,7 +39,15 @@ const USP_OPTIONS = [
   { value: "7", label: "7 — Practically Insoluble (>10000 parts)" },
 ];
 
-const PRODUCT_TYPES = ["API", "Intermediate", "KSM"];
+const PRODUCT_TYPES = ["API", "Drug Product", "Intermediate", "KSM"];
+
+// API and Drug Product are dose-bearing finished products: they carry a
+// clinical profile, use MACO limits and sit at the top of the hierarchy.
+const DOSE_BASED_TYPES = ["API", "Drug Product"];
+const isDoseBased = (category) => DOSE_BASED_TYPES.includes(category);
+
+const TYPE_BG    = { API: "#dbeafe", "Drug Product": "#ede9fe", Intermediate: "#fef3c7", KSM: "#f0fdf4" };
+const TYPE_COLOR = { API: "#1d4ed8", "Drug Product": "#6d28d9", Intermediate: "#92400e", KSM: "#15803d" };
 
 const API_STEPS = [
   { id: "identity",    label: "Identity" },
@@ -51,6 +59,9 @@ const API_STEPS = [
   { id: "equipment",   label: "Equipment" },
   { id: "review",      label: "Review" },
 ];
+
+// Drug Product is formulated from an API, so it has no synthesis route.
+const DRUG_PRODUCT_STEPS = API_STEPS.filter(s => s.id !== "synthesis");
 
 const NON_API_STEPS = [
   { id: "identity",    label: "Identity" },
@@ -172,7 +183,8 @@ function ProductPage({ goHome, currentUser }) {
   const printRef = useRef();
 
   // ─── Computed ─────────────────────────────────────────────────────────────────
-  const currentSteps = productCategory === "API" ? API_STEPS : NON_API_STEPS;
+  const currentSteps = productCategory === "Drug Product" ? DRUG_PRODUCT_STEPS
+    : isDoseBased(productCategory) ? API_STEPS : NON_API_STEPS;
   const allAtcOptions = [...ATC_DEFAULT, ...atcCustom];
   const isAdmin = currentUser?.role === "ADMIN";
 
@@ -362,6 +374,12 @@ function ProductPage({ goHome, currentUser }) {
     setFinalProductId("");
     setStepEquipmentMap([]);
     setEquipmentSequence({});
+    // Drug Product hides synthesis, CAS and IUPAC — drop anything entered under another type
+    if (type === "Drug Product") {
+      setSynthSteps([{ ...BLANK_SYNTH }]);
+      setCasNumber("");
+      setChemicalNumber("");
+    }
   };
 
   // ─── Synthesis step management ────────────────────────────────────────────────
@@ -595,8 +613,8 @@ function ProductPage({ goHome, currentUser }) {
         product_name:    name,
         facility_id:     parseInt(facilityId),
         product_category:       productCategory || null,
-        therapeutic_category:   productCategory === "API" ? (therapeuticCategory || null) : null,
-        route_of_administration: productCategory === "API" ? (routeOfAdmin || null) : null,
+        therapeutic_category:   isDoseBased(productCategory) ? (therapeuticCategory || null) : null,
+        route_of_administration: isDoseBased(productCategory) ? (routeOfAdmin || null) : null,
         final_product_id: productCategory === "Intermediate" && finalProductId ? parseInt(finalProductId) : null,
         synthesis_steps: validSteps.map(s => ({
           step_name:         s.step_name || "",
@@ -671,7 +689,7 @@ function ProductPage({ goHome, currentUser }) {
   const openMapModal = (apiProduct) => {
     // Pre-populate changes with current final_product_id values
     const init = {};
-    ovProducts.filter(p => p.product_category !== "API").forEach(p => {
+    ovProducts.filter(p => !isDoseBased(p.product_category)).forEach(p => {
       init[p.product_id] = p.final_product_id ?? null;
     });
     setMapChanges(init);
@@ -683,7 +701,7 @@ function ProductPage({ goHome, currentUser }) {
     if (!mapReason.trim()) { alert("Please enter a reason."); return; }
     if (!mapPassword.trim()) { alert("Please enter your password."); return; }
     const original = {};
-    ovProducts.filter(p => p.product_category !== "API").forEach(p => {
+    ovProducts.filter(p => !isDoseBased(p.product_category)).forEach(p => {
       original[p.product_id] = p.final_product_id ?? null;
     });
     const toUpdate = Object.entries(mapChanges).filter(
@@ -1116,7 +1134,7 @@ function ProductPage({ goHome, currentUser }) {
           ))}
         </div>
 
-        {productCategory && (
+        {productCategory && productCategory !== "Drug Product" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "18px" }}>
             <div>
               <p style={styles.fieldLabel}>CAS Registry Number</p>
@@ -1827,18 +1845,20 @@ function ProductPage({ goHome, currentUser }) {
             <span style={styles.rv}>{name || "—"}</span>
             <span style={styles.rk}>Type</span>
             <span style={styles.rv}>
-              <span style={{ ...styles.typeBadge, background: productCategory === "API" ? "#dbeafe" : productCategory === "Intermediate" ? "#fef3c7" : "#f3f4f6", color: productCategory === "API" ? "#1d4ed8" : productCategory === "Intermediate" ? "#92400e" : "#374151" }}>
+              <span style={{ ...styles.typeBadge, background: TYPE_BG[productCategory] || "#f3f4f6", color: TYPE_COLOR[productCategory] || "#374151" }}>
                 {productCategory || "—"}
               </span>
             </span>
-            <span style={styles.rk}>CAS Number</span>
-            <span style={styles.rv}>{casNumber || "—"}</span>
-            <span style={styles.rk}>IUPAC Name</span>
-            <span style={styles.rv}>{chemicalNumber || "—"}</span>
+            {productCategory !== "Drug Product" && (<>
+              <span style={styles.rk}>CAS Number</span>
+              <span style={styles.rv}>{casNumber || "—"}</span>
+              <span style={styles.rk}>IUPAC Name</span>
+              <span style={styles.rv}>{chemicalNumber || "—"}</span>
+            </>)}
           </div>
         </div>
 
-        {productCategory === "API" && (
+        {isDoseBased(productCategory) && (
           <div style={styles.reviewSection}>
             <p style={styles.reviewLabel}>Clinical Profile</p>
             <div style={styles.reviewGrid}>
@@ -2188,7 +2208,7 @@ function ProductPage({ goHome, currentUser }) {
                   {facilities.map(f => <option key={f.facility_id} value={f.facility_id}>{f.facility_name}</option>)}
                 </select>
               </div>
-              <button onClick={handleViewQuery} style={styles.queryBtn}>Query</button>
+              <button onClick={handleViewQuery} style={styles.queryBtn}>Find</button>
               {viewQueried && <button onClick={clearViewTab} style={styles.clearBtn}>Clear</button>}
               {viewQueried && viewProducts.length > 0 && (
                 <button onClick={handlePrint} style={styles.printBtn}>Print PDF</button>
@@ -2201,7 +2221,7 @@ function ProductPage({ goHome, currentUser }) {
           ) : !viewQueried ? (
             <div style={styles.emptyState}>
               <p style={{ margin: 0, fontSize: "15px", color: "#555" }}>
-                Select a facility and click <strong>Query</strong> to view products.
+                Select a facility and click <strong>Find</strong> to view products.
               </p>
             </div>
           ) : viewProducts.length === 0 ? (
@@ -2240,8 +2260,8 @@ function ProductPage({ goHome, currentUser }) {
                           <td style={{ ...cell, fontWeight: "600" }}>{p.product_name}</td>
                           <td style={cell}>
                             <span style={{ ...styles.typeBadge,
-                              background: p.product_category === "API" ? "#dbeafe" : p.product_category === "Intermediate" ? "#fef3c7" : "#f3f4f6",
-                              color:      p.product_category === "API" ? "#1d4ed8" : p.product_category === "Intermediate" ? "#92400e" : "#374151" }}>
+                              background: TYPE_BG[p.product_category] || "#f3f4f6",
+                              color:      TYPE_COLOR[p.product_category] || "#374151" }}>
                               {p.product_category || "—"}
                             </span>
                           </td>
@@ -2329,11 +2349,9 @@ function ProductPage({ goHome, currentUser }) {
       {/* ── OVERVIEW TAB ─────────────────────────────────────────────────────── */}
       {activeTab === "overview" && (() => {
         const apis      = ovProducts.filter(p => p.product_category === "API");
-        const nonApis   = ovProducts.filter(p => p.product_category !== "API");
+        const nonApis   = ovProducts.filter(p => !isDoseBased(p.product_category));
         const unmapped  = nonApis.filter(p => !p.final_product_id || !ovProducts.find(op => op.product_id === p.final_product_id));
 
-        const typeBg    = { API: "#dbeafe", Intermediate: "#fef3c7", KSM: "#f0fdf4" };
-        const typeColor = { API: "#1d4ed8", Intermediate: "#92400e", KSM: "#15803d" };
 
         const childrenOf = (parentId) =>
           nonApis.filter(p => p.final_product_id === parentId);
@@ -2347,8 +2365,8 @@ function ProductPage({ goHome, currentUser }) {
                 border: `1px solid ${depth === 0 ? "#e2e8f0" : "#f1f5f9"}`,
                 borderRadius: "6px" }}>
                 <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700",
-                  background: typeBg[p.product_category] || "#f3f4f6",
-                  color: typeColor[p.product_category] || "#374151", whiteSpace: "nowrap" }}>
+                  background: TYPE_BG[p.product_category] || "#f3f4f6",
+                  color: TYPE_COLOR[p.product_category] || "#374151", whiteSpace: "nowrap" }}>
                   {p.product_category}
                 </span>
                 <span style={{ fontWeight: "600", fontSize: "13px", color: "#1e293b" }}>{p.product_name}</span>
@@ -2439,8 +2457,8 @@ function ProductPage({ goHome, currentUser }) {
                         <span key={p.product_id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "6px",
                           background: "white", border: "1px solid #fcd34d", fontSize: "12px" }}>
                           <span style={{ padding: "1px 6px", borderRadius: "8px", fontSize: "10px", fontWeight: "700",
-                            background: typeBg[p.product_category] || "#f3f4f6",
-                            color: typeColor[p.product_category] || "#374151" }}>{p.product_category}</span>
+                            background: TYPE_BG[p.product_category] || "#f3f4f6",
+                            color: TYPE_COLOR[p.product_category] || "#374151" }}>{p.product_category}</span>
                           {p.product_name}
                         </span>
                       ))}
@@ -2455,9 +2473,7 @@ function ProductPage({ goHome, currentUser }) {
 
       {/* ── MAP PRODUCTS MODAL ────────────────────────────────────────────────── */}
       {mapModal && (() => {
-        const nonApiList = ovProducts.filter(p => p.product_category !== "API");
-        const typeBg    = { API: "#dbeafe", Intermediate: "#fef3c7", KSM: "#f0fdf4" };
-        const typeColor = { API: "#1d4ed8", Intermediate: "#92400e", KSM: "#15803d" };
+        const nonApiList = ovProducts.filter(p => !isDoseBased(p.product_category));
 
         // All selectable parents: the current API + any intermediate already under it
         const allParents = [
@@ -2491,8 +2507,8 @@ function ProductPage({ goHome, currentUser }) {
                   <div key={p.product_id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 10px",
                     background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
                     <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700",
-                      background: typeBg[p.product_category] || "#f3f4f6",
-                      color: typeColor[p.product_category] || "#374151", whiteSpace: "nowrap" }}>
+                      background: TYPE_BG[p.product_category] || "#f3f4f6",
+                      color: TYPE_COLOR[p.product_category] || "#374151", whiteSpace: "nowrap" }}>
                       {p.product_category}
                     </span>
                     <span style={{ flex: 1, fontSize: "13px", fontWeight: "500", color: "#1e293b" }}>{p.product_name}</span>
@@ -2667,12 +2683,13 @@ function ProductPage({ goHome, currentUser }) {
               style={{ ...styles.modalInput, cursor: "pointer" }}>
               <option value="">— Not Set —</option>
               <option value="API">API</option>
+              <option value="Drug Product">Drug Product</option>
               <option value="Intermediate">Intermediate</option>
               <option value="KSM">KSM</option>
             </select>
 
-            {/* Clinical (API only) */}
-            {editForm.product_category === "API" && (
+            {/* Clinical (API / Drug Product only) */}
+            {isDoseBased(editForm.product_category) && (
               <>
                 <p style={styles.editSectionLabel}>Clinical Profile</p>
                 <label style={styles.modalLabel}>Therapeutic Category</label>
@@ -2692,8 +2709,8 @@ function ProductPage({ goHome, currentUser }) {
               </>
             )}
 
-            {/* Synthesis steps */}
-            {renderEditSynthSteps()}
+            {/* Synthesis steps (not applicable to Drug Product) */}
+            {editForm.product_category !== "Drug Product" && renderEditSynthSteps()}
 
             {/* Dosage */}
             <p style={styles.editSectionLabel}>Dosage Information</p>
@@ -2768,14 +2785,16 @@ function ProductPage({ goHome, currentUser }) {
             {/* Chemical identifiers */}
             <p style={styles.editSectionLabel}>Chemical Identifiers</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <div><label style={styles.modalLabel}>CAS Number</label>
-                <input type="text" value={editForm.cas_number}
-                  onChange={e => setEditForm(f => ({ ...f, cas_number: e.target.value }))}
-                  placeholder="e.g. 50-78-2" style={styles.modalInput} /></div>
-              <div><label style={styles.modalLabel}>IUPAC Name</label>
-                <input type="text" value={editForm.chemical_number}
-                  onChange={e => setEditForm(f => ({ ...f, chemical_number: e.target.value }))}
-                  placeholder="IUPAC name of the compound" style={styles.modalInput} /></div>
+              {editForm.product_category !== "Drug Product" && (<>
+                <div><label style={styles.modalLabel}>CAS Number</label>
+                  <input type="text" value={editForm.cas_number}
+                    onChange={e => setEditForm(f => ({ ...f, cas_number: e.target.value }))}
+                    placeholder="e.g. 50-78-2" style={styles.modalInput} /></div>
+                <div><label style={styles.modalLabel}>IUPAC Name</label>
+                  <input type="text" value={editForm.chemical_number}
+                    onChange={e => setEditForm(f => ({ ...f, chemical_number: e.target.value }))}
+                    placeholder="IUPAC name of the compound" style={styles.modalInput} /></div>
+              </>)}
               <div><label style={styles.modalLabel}>Soluble Solvent</label>
                 <input type="text" value={editForm.soluble_solvent}
                   onChange={e => setEditForm(f => ({ ...f, soluble_solvent: e.target.value }))}

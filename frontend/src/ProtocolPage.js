@@ -33,7 +33,9 @@ function statusBadge(status) {
 
 function fmtLimit(capped, raw) {
   if (capped == null) return "—";
-  if (raw != null && raw > 10) return `10 (${raw})`;
+  if (raw != null && raw > 10) return (
+    <>10<span className="raw-val" style={{ display: "block", fontSize: "0.85em", color: "#64748b" }}>({raw})</span></>
+  );
   return String(capped);
 }
 
@@ -628,13 +630,17 @@ export default function ProtocolPage({ goHome, currentUser, role }) {
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
 <title>Cleaning Validation Report — ${product_name}</title>
 <style>
-@page{size:A4 landscape;margin:18mm 12mm 15mm 12mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font-family:Arial,sans-serif;font-size:7pt;color:#666}}
+@page{size:A4 landscape;margin:8mm 12mm 10mm 12mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font-family:Arial,sans-serif;font-size:7pt;color:#666}}
 *,*::before,*::after{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 .rh{position:fixed;top:0;left:0;right:0;height:15mm;background:white;border-bottom:2px solid #004f9f;display:flex;align-items:center;gap:12px;padding:0 12mm;z-index:1000}
 .rh img{height:9mm}.rh-center{flex:1}.rh-title{font-size:10pt;font-weight:bold;color:#004f9f;margin:0}
 .rh-sub{font-size:7.5pt;color:#666;margin:1px 0 0}.rh-meta{text-align:right;font-size:7pt;color:#777;line-height:1.5}
 .rf{position:fixed;bottom:0;left:0;right:0;height:10mm;background:white;border-top:1px solid #d0d0d0;display:flex;align-items:center;justify-content:space-between;padding:0 12mm;font-size:7pt;color:#999;z-index:1000}
-body{font-family:Arial,sans-serif;font-size:9pt;color:#222;margin:0;padding:17mm 0 12mm;line-height:1.4}
+body{font-family:Arial,sans-serif;font-size:9pt;color:#222;margin:0;line-height:1.4}
+.pf{width:100%!important;border-collapse:collapse;margin:0!important;break-inside:auto!important;page-break-inside:auto!important}
+.pf>thead>tr>td,.pf>tfoot>tr>td,.pf>tbody>tr>td{border:none!important;padding:0!important;background:none!important;font-size:inherit!important}
+.pf>tbody>tr{break-inside:auto!important;page-break-inside:auto!important}
+.pf-head{height:17mm}.pf-foot{height:12mm}
 .doc-header{display:none!important}.doc-footer{display:none!important}
 .doc-section{break-inside:avoid;page-break-inside:avoid;padding:6pt 0!important;border-left:none!important;margin-bottom:0!important}
 .sig-grid-print{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:16pt!important;padding:8pt 0!important;margin-top:8pt!important;break-inside:avoid}
@@ -665,7 +671,9 @@ div{overflow:visible!important;max-width:100%}
   <span>${product_name} — ${facility_name}</span>
   <span>Printed: ${new Date().toLocaleString("en-IN")}</span>
 </div>
-${reportPrintRef.current.innerHTML}
+<table class="pf"><thead><tr><td><div class="pf-head"></div></td></tr></thead>
+<tfoot><tr><td><div class="pf-foot"></div></td></tr></tfoot>
+<tbody><tr><td>${reportPrintRef.current.innerHTML}</td></tr></tbody></table>
 </body></html>`);
     win.document.close(); win.focus();
     setTimeout(() => { win.print(); win.close(); }, 600);
@@ -834,23 +842,32 @@ ${reportPrintRef.current.innerHTML}
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
 <title>Cleaning Validation Protocol — ${displayDocNumber}${versionLabel}</title>
 <style>
-@page{size:A4 portrait;margin:22mm 14mm 18mm 14mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font-family:Arial,sans-serif;font-size:7.5pt;color:#666}}
+@page{size:A4 portrait;margin:10mm 14mm 12mm 14mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font-family:Arial,sans-serif;font-size:7.5pt;color:#666}}
 *,*::before,*::after{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 .rh{position:fixed;top:0;left:0;right:0;height:18mm;background:white;border-bottom:2px solid #004f9f;display:flex;align-items:center;gap:12px;padding:0 14mm;z-index:1000}
 .rh img{height:10mm}.rh-center{flex:1}.rh-title{font-size:11pt;font-weight:bold;color:#004f9f;margin:0}
 .rh-sub{font-size:8pt;color:#666;margin:1px 0 0}.rh-meta{text-align:right;font-size:7.5pt;color:#777;line-height:1.5}
 .rf{position:fixed;bottom:0;left:0;right:0;height:12mm;background:white;border-top:1px solid #d0d0d0;display:flex;align-items:center;justify-content:space-between;padding:0 14mm;font-size:7.5pt;color:#999;z-index:1000}
-body{font-family:Arial,sans-serif;font-size:10pt;color:#222;margin:0;padding:20mm 0 14mm;line-height:1.5}
+body{font-family:Arial,sans-serif;font-size:10pt;color:#222;margin:0;line-height:1.5}
+.pf{width:100%!important;border-collapse:collapse;margin:0!important;break-inside:auto!important;page-break-inside:auto!important}
+.pf>thead>tr>td,.pf>tfoot>tr>td,.pf>tbody>tr>td{border:none!important;padding:0!important;background:none!important;font-size:inherit!important}
+.pf>tbody>tr{break-inside:auto!important;page-break-inside:auto!important}
+.pf-head{height:20mm}.pf-foot{height:14mm}
 .doc-header{display:none!important}.doc-footer{display:none!important}.archive-banner{display:none!important}
 .doc-section{break-inside:avoid;page-break-inside:avoid;padding:8pt 0!important;border-left:none!important;margin-bottom:0!important}
-.pair-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:8pt!important;padding:6pt 8pt!important;background:#f8fafc;border:0.5pt solid #dde4f0;border-radius:4pt}
+.pair-block{break-inside:auto;page-break-inside:auto;margin-bottom:8pt!important;padding:6pt 8pt!important;background:#f8fafc;border:0.5pt solid #dde4f0;border-radius:4pt}
+.pair-block>p,.calc-section>p{break-after:avoid;page-break-after:avoid}
 .formula-box{break-inside:avoid;page-break-inside:avoid;padding:6pt 10pt;background:#f8fafc;border:0.5pt solid #dde4f0;border-radius:3pt;margin-bottom:5pt;display:flex;flex-direction:column;gap:3pt}
 .sig-grid-print{break-before:avoid;page-break-before:avoid;break-inside:avoid;page-break-inside:avoid;display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:20pt!important;padding:10pt 0!important;margin-top:10pt!important}
 .sampling-cat-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:10pt}
 table{break-inside:avoid;page-break-inside:avoid;width:100%!important;border-collapse:collapse;margin:3pt 0}
 tr{break-inside:avoid;page-break-inside:avoid}
-th{background:#004f9f!important;color:white!important;padding:4pt 6pt!important;text-align:left;border:0.5pt solid #c0d0e8;font-size:8.5pt!important;font-weight:bold;word-break:break-word;overflow-wrap:break-word}
-td{border:0.5pt solid #d8e2ef;padding:4pt 6pt!important;font-size:8.5pt!important;word-break:break-word;overflow-wrap:break-word}
+th{background:#004f9f!important;color:white!important;padding:4pt 6pt!important;text-align:left;border:0.5pt solid #c0d0e8;font-size:8.5pt!important;font-weight:bold;overflow-wrap:break-word}
+td{border:0.5pt solid #d8e2ef;padding:4pt 6pt!important;font-size:8.5pt!important;overflow-wrap:break-word}
+.limits-table th,.limits-table td{padding:3pt 4pt!important;font-size:7.5pt!important;text-align:center}
+.limits-table td:first-child,.limits-table th:first-child{text-align:left}
+.limits-table td:not(:first-child){white-space:nowrap}
+.raw-val{display:block;font-size:6.5pt;color:#64748b}
 tr:nth-child(even) td{background:#f5f8fc!important}
 h2{font-size:11pt;color:#004f9f;border-bottom:1pt solid #004f9f;padding-bottom:3pt;margin:14pt 0 6pt}
 img{max-width:70pt;max-height:26pt}
@@ -879,7 +896,9 @@ div{overflow:visible!important;max-width:100%}
   <span>${displayDocNumber}${versionLabel}</span>
   <span>Printed: ${new Date().toLocaleString("en-IN")}</span>
 </div>
-${printRef.current.innerHTML}
+<table class="pf"><thead><tr><td><div class="pf-head"></div></td></tr></thead>
+<tfoot><tr><td><div class="pf-foot"></div></td></tr></tfoot>
+<tbody><tr><td>${printRef.current.innerHTML}</td></tr></tbody></table>
 </body></html>`);
     win.document.close(); win.focus();
     setTimeout(() => { win.print(); win.close(); }, 600);
@@ -1139,7 +1158,7 @@ ${printRef.current.innerHTML}
                         step equipment is governed by a fixed 10 ppm criterion (see below).
                       </p>
                       {row.shared_equipment.length > 0 ? (
-                        <table style={S.dataTable}>
+                        <table style={S.dataTable} className="limits-table">
                           <thead>
                             <tr style={{ background: "#e8f0fb" }}>
                               <th style={S.th} rowSpan={2}>Equipment</th>

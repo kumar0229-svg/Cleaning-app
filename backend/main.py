@@ -131,6 +131,8 @@ from models.ccv import ContinuousCleaningVerification
 from models.lifecycle_verification import LifeCycleVerification
 from models.password_reset_request import PasswordResetRequest
 from models.genotoxic_impurity import GenotoxicImpurity
+from models.impact_assessment import ImpactAssessment
+from models.impact_assessment_item import ImpactAssessmentItem
 from roles_config import ROLES_CAN_VIEW, ROLES_CAN_EDIT, ROLES_CAN_DELETE, ROLES_CAN_VIEW_AUDIT, ROLES_CAN_MANAGE_USERS, ROLES_CAN_MANAGE_POLICY
 
 app = FastAPI(title="Cleaning Carryover Limit Estimator")
@@ -2192,6 +2194,237 @@ def audit_product(
         AuditLog.entity_type == "PRODUCT",
         AuditLog.entity_id == str(product_id)
     ).order_by(AuditLog.audit_id.desc()).all()
+
+# ===================================================
+# IMPACT ASSESSMENT
+# ===================================================
+_LIMIT_FIELDS = {
+    "min_therapeutic_dose_mg": "Min Therapeutic Dose (mg)",
+    "max_daily_dose_mg":       "Max Daily Dose (mg)",
+    "pde_mg_day":              "PDE (mg/day)",
+    "min_yield_kg":            "Min Yield (kg)",
+    "max_batch_size_kg":       "Max Batch Size (kg)",
+    "lod_ppm":                 "LOD (ppm)",
+    "loq_ppm":                 "LOQ (ppm)",
+}
+
+@app.get("/product/{product_id}/validation-records")
+def get_product_validation_records(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    records = []
+
+    # Limit-driving field changes (dose / PDE / LOD / LOQ / yield / batch size) —
+    # pulled from the existing per-field AuditLog trail written by /product/update.
+    for log in db.query(AuditLog).filter(
+        AuditLog.entity_type == "PRODUCT",
+        AuditLog.entity_id == str(product_id),
+        AuditLog.field_name.in_(_LIMIT_FIELDS.keys())
+    ).order_by(AuditLog.timestamp.desc()).all():
+        field_label = _LIMIT_FIELDS.get(log.field_name, log.field_name)
+        records.append({
+            "record_type": "LIMIT_CHANGE",
+            "record_id": log.audit_id,
+            "label": f"{field_label}: {log.old_value} → {log.new_value}",
+            "status": log.timestamp.strftime("%d-%b-%Y") if log.timestamp else None,
+        })
+
+    for a in db.query(ProtocolArchive).filter(ProtocolArchive.product_id == product_id).all():
+        records.append({
+            "record_type": "PROTOCOL",
+            "record_id": a.archive_id,
+            "label": f"{a.doc_number} v{a.version}",
+            "status": a.status,
+        })
+
+    for r in db.query(CleaningValidationReport).filter(CleaningValidationReport.product_id == product_id).all():
+        records.append({
+            "record_type": "REPORT",
+            "record_id": r.report_id,
+            "label": f"Report #{r.report_id}",
+            "status": r.status,
+        })
+
+    for c in db.query(ContinuousCleaningVerification).filter(ContinuousCleaningVerification.product_id == product_id).all():
+        records.append({
+            "record_type": "CCV",
+            "record_id": c.ccv_id,
+            "label": f"CCV Run #{c.run_number}",
+            "status": c.status,
+        })
+
+    for d in db.query(DEHTReport).filter(DEHTReport.product_id == product_id).all():
+        records.append({
+            "record_type": "DEHT",
+            "record_id": d.report_id,
+            "label": f"DEHT Report #{d.report_id}",
+            "status": d.status,
+        })
+
+    return records
+
+class ScanLimitImpactRequest(BaseModel):
+    facility_id: int
+
+@app.post("/impact-assessment/scan-limit-impact")
+def scan_limit_impact(
+    req: ScanLimitImpactRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Re-runs the MACO matrix for every product in the facility and reports
+    which ones' governing limit shifted since their last calculated run —
+    surfaces the ripple effect of a mapping/equipment/batch-size change on
+    products nobody directly edited."""
+    check_role(current_user.role, ["QA", "ADMIN"])
+
+    products = db.query(Product).filter(
+        Product.facility_id == req.facility_id,
+        (Product.is_archived == False) | (Product.is_archived == None)
+    ).all()
+
+    changes = []
+    for p in products:
+        prev_run = db.query(MacoRun).filter(
+            MacoRun.source_product_id == p.product_id
+        ).order_by(MacoRun.run_at.desc()).first()
+        prev_val = prev_run.governing_maco if prev_run else None
+
+        result = matrix(MatrixRequest(source_product_id=p.product_id), db, current_user)
+        new_val = result.get("governing_maco")
+
+        if prev_run is not None and new_val != prev_val:
+            changes.append({
+                "product_id": p.product_id,
+                "product_name": p.product_name,
+                "earlier_limit": prev_val,
+                "new_limit": new_val,
+            })
+
+    return {"scanned_count": len(products), "changes": changes}
+
+class ImpactAssessmentItemRequest(BaseModel):
+    record_type: str
+    record_id: int
+    record_label: str
+    record_status_snapshot: Optional[str] = None
+    impact_note: str = ""
+    recommendation: str = ""
+
+class ImpactAssessmentRequest(BaseModel):
+    product_id: int
+    qms_reference: str
+    change_category: str
+    change_description: str = ""
+    items: List[ImpactAssessmentItemRequest]
+
+@app.post("/impact-assessment/create")
+def create_impact_assessment(
+    req: ImpactAssessmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    check_role(current_user.role, ["QA", "ADMIN"])
+
+    if not req.qms_reference.strip():
+        raise HTTPException(status_code=400, detail="QMS reference number is required ❌")
+    if not req.items:
+        raise HTTPException(status_code=400, detail="Select at least one validation record to assess ❌")
+
+    product = db.query(Product).filter(Product.product_id == req.product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found ❌")
+
+    ia = ImpactAssessment(
+        product_id=req.product_id,
+        product_name=product.product_name,
+        qms_reference=req.qms_reference.strip(),
+        change_category=req.change_category,
+        change_description=req.change_description,
+        created_by=current_user.username,
+        created_at=now_ist().isoformat(),
+    )
+    db.add(ia)
+    db.commit()
+    db.refresh(ia)
+
+    for item in req.items:
+        db.add(ImpactAssessmentItem(
+            impact_assessment_id=ia.id,
+            record_type=item.record_type,
+            record_id=item.record_id,
+            record_label=item.record_label,
+            record_status_snapshot=item.record_status_snapshot,
+            impact_note=item.impact_note,
+            recommendation=item.recommendation,
+        ))
+    db.commit()
+
+    log_audit(db, "CREATE", "IMPACT_ASSESSMENT", ia.id,
+              "qms_reference", "", req.qms_reference, current_user.username)
+
+    return {"message": "Impact assessment recorded ✅", "id": ia.id}
+
+@app.get("/impact-assessment/list")
+def list_impact_assessments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    rows = db.query(ImpactAssessment).order_by(ImpactAssessment.id.desc()).all()
+    out = []
+    for ia in rows:
+        item_count = db.query(ImpactAssessmentItem).filter(
+            ImpactAssessmentItem.impact_assessment_id == ia.id
+        ).count()
+        out.append({
+            "id": ia.id,
+            "product_id": ia.product_id,
+            "product_name": ia.product_name,
+            "qms_reference": ia.qms_reference,
+            "change_category": ia.change_category,
+            "change_description": ia.change_description,
+            "created_by": ia.created_by,
+            "created_at": ia.created_at,
+            "item_count": item_count,
+        })
+    return out
+
+@app.get("/impact-assessment/{assessment_id}")
+def get_impact_assessment(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ia = db.query(ImpactAssessment).filter(ImpactAssessment.id == assessment_id).first()
+    if not ia:
+        raise HTTPException(status_code=404, detail="Impact assessment not found ❌")
+    items = db.query(ImpactAssessmentItem).filter(
+        ImpactAssessmentItem.impact_assessment_id == assessment_id
+    ).all()
+    return {
+        "id": ia.id,
+        "product_id": ia.product_id,
+        "product_name": ia.product_name,
+        "qms_reference": ia.qms_reference,
+        "change_category": ia.change_category,
+        "change_description": ia.change_description,
+        "created_by": ia.created_by,
+        "created_at": ia.created_at,
+        "items": [
+            {
+                "id": it.id,
+                "record_type": it.record_type,
+                "record_id": it.record_id,
+                "record_label": it.record_label,
+                "record_status_snapshot": it.record_status_snapshot,
+                "impact_note": it.impact_note,
+                "recommendation": it.recommendation,
+            }
+            for it in items
+        ],
+    }
 
 # ===================================================
 # USER MANAGEMENT
